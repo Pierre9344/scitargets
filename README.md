@@ -14,7 +14,7 @@ devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
 devtools::install("https://github.com/Pierre9344/scitargets", build_vignettes = T)
 ```
 
-## ExampLE
+## Example
 
 1.  In Rstudio, create a new project using scitargets project template.
 
