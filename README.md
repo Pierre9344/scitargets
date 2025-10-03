@@ -11,7 +11,7 @@ install.package("devtools")
 # At the time I write this, seurat is on the version 5.3.0 on cran.
 # I force seurat 5.3.1 or higher as the 5.3.0 version is bugged when using the azimuth package
 devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
-devtools::install("path to scitargets tar.gz")
+devtools::install("https://github.com/Pierre9344/scitargets", build_vignettes = T)
 ```
 
 ## ExampLE
