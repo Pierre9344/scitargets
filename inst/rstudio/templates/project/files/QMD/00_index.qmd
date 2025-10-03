@@ -1,0 +1,8 @@
+---
+title: test
+---
+
+Home page of the report website
+
+A description of the pipeline we put in place can be found on the [state of the pipeline](01_pipeline_state.qmd) page.
+
