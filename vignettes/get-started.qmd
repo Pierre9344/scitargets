@@ -111,7 +111,7 @@ devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
 ```{r}
 #| include: true
 #| eval: false
-devtools::install("https://github.com/Pierre9344/scitargets")
+devtools::install("https://github.com/Pierre9344/scitargets", build_vignettes = T)
 ```
 
 2.  Open your project option and indicate the python interpreter on which you installed the umap-learn and session_info packages. In RStudio: Tools -\> Project Options... -\> Python
