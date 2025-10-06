@@ -28,9 +28,9 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
 6.  Modify the document to fit your run:
 
-    -   set the RUN_NAME parameter (inside the yaml header) to the name of the run folder inside the **data/cellranger_output/** folder.
+    -   set the RUN_ID parameter (inside the yaml header) to the name of the run folder inside the **data/cellranger_output/** folder.
 
-    -   replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_NAME parameter).
+    -   replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_ID parameter in the yaml header).
 
 7.  Modify the \*\*"\_quarto.yml"\*\* file to indicate each reports inside the website
 
