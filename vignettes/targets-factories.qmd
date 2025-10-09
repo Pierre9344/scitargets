@@ -52,7 +52,8 @@ list(
     min_genes_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
-    singlets_dim_to_use = 1:15
+    singlets_dim_to_use = 1:15,
+    singlets_clusters_to_use = "clusters_0.5"
   )
 )
 ```
@@ -126,7 +127,30 @@ list(
       dims_to_use = 1:15
     ),
     description = "SC282_250730: remove the doublets and recompute reduction."
-  )
+  ),
+  targets::tar_target_raw(
+    name = markers_SC282_250730,
+    command = {
+      Seurat::FindAllMarkers(
+        seurat_obj_target_SC282_250730_singlets,
+        assay = "SCT",
+        group.by = cluster_to_use,
+        random.seed = targets::tar_seed_get(),
+        only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25
+        )
+      },
+    description = "SC282_250730: Markers identified for the different cells clusters (clusters_0.5)"
+    ),
+  targets::tar_target_raw(
+    name = seurat_obj_SC282_250730_azimuth,
+    command = {
+      scitargets::azimuth_annot_pbmc(
+        seurat_obj_target_SC282_250730_singlets,
+        "clusters_0.5"
+        )
+      },
+    description = "SC282_250730: singlets cell with azimuth celltype annotation."
+    )
 )
 ```
 
@@ -153,6 +177,19 @@ seurat_obj_target_SC282_250730_singlets <- scitargets::extract_singlets(
   obj = seurat_obj_SC282_250730_hto_demux,
   dims_to_use = 1:15
 )
+seurat_obj_SC282_250730_azimuth <- scitargets::azimuth_annot_pbmc(
+  seurat_obj_target_SC282_250730_singlets,
+  "clusters_0.5"
+  )
 ```
+
+
+# Optional removing of genes
+
+The **"singlets_feat_to_remove"** argument of *"tar_demultiplex_hto"* can be set to a character vector corresponding to the names of the genes (features) names in the RNA assay of the Seurat object. In this case, the pipeline will create another object corresponding to the singlets and without the specified genes. Both the identification of markers and celltypes annotation with azimuth will be based on this new object.
+
+It can be used to remove genes expressed on X and Y chromosomes to remove sex related batches effect.
+
+
 
 

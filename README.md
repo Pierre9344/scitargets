@@ -1,6 +1,6 @@
 # scitargets <img src="man/figures/logo.png" align="right" height="99"/>
 
-The goal of scitargets is to help you analyse single-cell CITE-seq data by providing target factories and parametized report.
+The goal of scitargets is to help you analyse single-cell CITE-seq data by providing target factories and parametized report to deal with basic quality controls, HTO demultiplexing, and celltypes annotation.
 
 ## Installation
 

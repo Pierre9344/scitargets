@@ -1,6 +1,6 @@
 Package: scitargets
 Title: Single-cell CITE-seq analysis with targets pipeline
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: 
     person(given = "Pierre",
            family = "Solomon",
