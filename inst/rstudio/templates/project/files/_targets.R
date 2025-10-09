@@ -19,8 +19,7 @@ library(scitargets)
 #   my_controller$start()
 #   log_start(
 #     path = "./logs/autometric.txt",
-#     seconds = 3,
-#     pids = my_controller$pids()
+#     seconds = 1
 #   )
 # }
 
