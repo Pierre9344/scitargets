@@ -1,3 +1,11 @@
+# scitargets 0.2.1
+
+-   Modification of README.md
+-   Correction of vignettes
+-   Correction of autometric setup in _targets.R by removing the deprecated pids call from crew controller (code is commented by default)
+
+
+
 # scitargets 0.2.0
 
 -   Initial github commit
