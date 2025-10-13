@@ -17,6 +17,7 @@ single-cell \href{https://en.wikipedia.org/wiki/CITE-Seq}{CITE-seq} data with th
 \item \link{demultiplex_cell}: demultiplex the cells using the HTO assay
 \item \link{extract_non_negative_cells}: filter the cells to remove the negative cells (keep both singlets and doublets).
 \item \link{extract_singlets}: filter the cells to keep only the singlets. Also allow to remove some features (genes) by names before recomputing UMAP, t-SNE, and clustering the cells.
+\item \link{azimuth_annot_pbmc}: Use azimuth to annotate celltypes using a PBMC reference
 }
 }
 
