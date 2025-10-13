@@ -16,15 +16,17 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
 ## Example
 
-1.  In Rstudio, create a new project using scitargets project template.
+1.  In Rstudio, create a new project using scitargets project template (File -\> New Project -\> New Directory -\> Project template for scitargets).
 
 2.  Copy your cellranger output inside **"data/cellranger_output/"** folder. Create a subfolder for each run.
 
 3.  Open the \*\*"\_targets.R"\*\* script and modify it to run the pipeline on each run.
 
-4.  (Optional), unquote the "**crew**" code in "\_targets.R" to allow a parallelization of the pipeline steps.
+    -   Duplicate the **"tar_demultiplex_hto"** function to have one call per run and modify the argument (the run_id argument must correspond the subfolder in "data/cellranger_output/".
 
-5.  Duplicate the "**.qmd**"" reports (QMD folder) so that you have one document per run.
+4.  (Optional), unquote the "**crew**" code in "\_targets.R" to allow a parallelization of the pipeline steps and accelerate the pipeline).
+
+5.  Duplicate the "**.qmd**" reports (QMD folder) so that you have one document per run.
 
 6.  Modify the document to fit your run:
 
@@ -32,12 +34,13 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
     -   replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_ID parameter in the yaml header).
 
-7.  Modify the \*\*"\_quarto.yml"\*\* file to indicate each reports inside the website
+7.  Modify the \*\*"\_quarto.yml"\*\* file to indicate each reports (qmd document) inside the website
 
-8.  Run the pipeline
+8.  Run the pipeline using **"targets::tar_make()"**
 
 ``` r
 library(targets)
 tar_make()
-quarto::quarto_render(".")
 ```
+
+Check the vignettes for more details.

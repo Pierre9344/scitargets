@@ -11,6 +11,7 @@
 #' 3. [demultiplex_cell]: demultiplex the cells using the HTO assay
 #' 4. [extract_non_negative_cells]: filter the cells to remove the negative cells (keep both singlets and doublets).
 #' 5. [extract_singlets]: filter the cells to keep only the singlets. Also allow to remove some features (genes) by names before recomputing UMAP, t-SNE, and clustering the cells.
+#' 6. [azimuth_annot_pbmc]: Use azimuth to annotate celltypes using a PBMC reference
 #'
 #' ## Targets factories:
 #'
@@ -19,7 +20,6 @@
 #'
 #' ## Other targets related functions:
 #' 1. [tar_visnetwork_enhanced]: Similar to [targets::tar_visnetwork] but the graph was modified to easier to read.
-#'
 #'
 #' ## Exported functions:
 #' - magrittr pipes: \link[magrittr]{%>%}, \link[magrittr]{%<>%}
