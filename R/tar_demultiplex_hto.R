@@ -1,7 +1,7 @@
 utils::globalVariables(c(
   "min_RNA", "max_RNA", "mt_cutoff", "cellranger_path",
   "project_name", "r_id", "p_id", "min_g", "max_g", "mt",
-  "id", "feats"
+  "id", "feats", "seurat", "singlets_dim", "cluster_to_use"
 ))
 
 #' Targets factory to demultiplex CITE-seq

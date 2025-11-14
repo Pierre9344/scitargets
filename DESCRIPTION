@@ -1,11 +1,6 @@
 Package: scitargets
 Title: Single-cell CITE-seq analysis with targets pipeline
 Version: 0.2.1
-Authors@R: 
-    person(given = "Pierre",
-           family = "Solomon",
-           email = "pierre.solomon@laposte.net",
-           role = c("aut", "cre"))
 Description: This package provides target factories and utilities for analyzing single-cell CITE-seq data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
@@ -19,7 +14,8 @@ Imports:
     dplyr,
     tidyselect,
     visNetwork,
-    stats
+    stats,
+    Azimuth
 Suggests: 
     knitr,
     rmarkdown,
@@ -35,3 +31,7 @@ VignetteBuilder: quarto
 Depends: 
     R (>= 3.5)
 LazyData: true
+Authors@R: 
+    person("Pierre", "Solomon", , "pierre.solomon@laposte.net", role = c("aut", "cre"))
+Author: Pierre Solomon
+Maintainer: Pierre Solomon <pierre.solomon@laposte.net>
