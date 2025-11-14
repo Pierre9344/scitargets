@@ -19,7 +19,7 @@ azimuth_annot_pbmc <- function(obj, cluster_to_use = "clusters_0.5") {
   } else if (cluster_to_use %in% obj@meta.data) {
     stop("cluster_to_use must br a character variable present in the meta.data of obj")
   }
-  Idents(obj) <- cluster_to_use
-  DefaultAssay(obj) <- "SCT"
+  SeuratObject::Idents(obj) <- cluster_to_use
+  SeuratObject::DefaultAssay(obj) <- "SCT"
   return(Azimuth::RunAzimuth(obj, reference = "pbmcref", assay = "SCT"))
 }

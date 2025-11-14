@@ -1,12 +1,13 @@
 ---
-title: "targets-factories"
+title: "Get started"
 format:
   html:
    toc: true
    toc-depth: 3
    embed-resources: true
+  pdf: default
 vignette: >
-  %\VignetteIndexEntry{targets-factories}
+  %\VignetteIndexEntry{get-started}
   %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
 knitr:
