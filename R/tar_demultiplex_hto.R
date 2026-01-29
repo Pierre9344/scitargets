@@ -1,6 +1,6 @@
 utils::globalVariables(c(
   "min_RNA", "max_RNA", "mt_cutoff", "cellranger_path",
-  "project_name", "r_id", "p_id", "min_g", "max_g", "mt",
+  "project_name", "r_id", "r_path", "p_id", "min_g", "max_g", "mt",
   "id", "feats", "seurat", "singlets_dim", "cluster_to_use"
 ))
 
@@ -19,8 +19,9 @@ utils::globalVariables(c(
 #'
 #' Dimension reduction (PCA, UMAP, t-SNE) are computed after each modification of the Seurat object that modify the count matrix.
 #'
-#' @param run_id Relative or absolute path to the directory that contains another directory whose name correspond to id and contains cellranger output (barcodes.tsv.gz, features.tsv.gz, matrix.mtx.gz).
+#' @param run_id Used to set the names of of the targets. Must be unique across all project
 #' @param project_id Used as the project name for the Seurat object.
+#' @param run_path Relative or absolute path to the directory that contains another directory whose name correspond to id and contains cellranger output (barcodes.tsv.gz, features.tsv.gz, matrix.mtx.gz).
 #' @param min_genes_detected Minimal number of genes detected in a cell. Default to 200.
 #' @param max_genes_detected Maximal number of genes detected in a cell. Default to 4000.
 #' @param mt_percent_cutoff Cutoff for the percentage of mitochondrial counts a cell can have.
@@ -38,12 +39,23 @@ utils::globalVariables(c(
 tar_demultiplex_hto <- function(
     run_id = "ID_NAME",
     project_id = "PROJECT_ID",
+    run_path = NA,
     min_genes_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
     singlets_feat_to_remove = NULL,
     singlets_dim_to_use = 1:15,
     singlets_clusters_to_use = NULL) {
+  if (is.na(run_path)) {
+    stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 1")
+  } else if (fs::is_absolute_path(run_path) &&
+             !startsWith(normalizePath(run_id, winslash = "/", mustWork = F),
+                         normalizePath("./data/cellranger_output/", winslash = "/", mustWork = F))
+             ) {
+    stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 2")
+  } else if (!dir.exists(fs::path("./data/cellranger_output/", run_path))) {
+    stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 3")
+  }
   if (!is.character(run_id)) {
     stop("run_id must be a character value corresponding to the date of the sequencing run.")
   }
@@ -74,12 +86,14 @@ tar_demultiplex_hto <- function(
       command = base::substitute(
         expr = list(
           "run" = r_id, "project" = p_id,
+          "path" = r_path,
           "min_genes_detected" = min_g,
           "max_genes_detected" = max_g,
           "mt_cutoff" = mt
         ),
         env = list(
           r_id = run_id, p_id = project_id,
+          r_path = run_path,
           min_g = min_genes_detected,
           max_g = max_genes_detected,
           mt = mt_percent_cutoff
@@ -94,7 +108,7 @@ tar_demultiplex_hto <- function(
       name = base::paste0("cellranger_output_", run_id),
       command = base::substitute(
         base::paste0("./data/cellranger_output/", id, "/"),
-        list(id = run_id)
+        list(id = run_path)
       ),
       format = "file",
       description = base::paste0(

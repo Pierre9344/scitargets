@@ -154,6 +154,7 @@ list(
   scitargets::tar_demultiplex_hto(
     run_id = "", # identifier for the run
     project_id = "",
+    run_path = "", # relative or absolute path to a subfolder of data/cellranger_output with the files of the runs
     min_gene_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
@@ -165,6 +166,8 @@ list(
 Here, the 'tar_demultiplex_hto' function will create the steps to realize the quality controls and HTO demultiplexing, and singlets extraction and then the 'tar_quarto' function will render the report using the pipeline outputs.
 
 I recommand to leave the **singlets_dim_to_use** argument to its default value for your first run. See the [singlets_dim_to_use](#dim_to_use) section for more details.
+
+**Be aware that the targets names will be based on the run_id!** Please make sure that each call to the tar_demultiplex_hto use an unique run_id.
 
 ### If you have a single dataset
 

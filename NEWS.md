@@ -1,3 +1,9 @@
+# scitargets 0.3.0
+
+-   Correction of a bug in the `demultiplex_cell` function
+-   Modification of the quarto template document "02_run_1.qmd".
+-   Added a run_path input to `tar_demultiplex_hto` allowing to indicatesubdirectory when indicating the runs inside the data/cellranger_output/ folder.
+
 # scitargets 0.2.1
 
 -   Modification of README.md
