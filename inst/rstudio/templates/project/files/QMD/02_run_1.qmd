@@ -336,9 +336,6 @@ cat("\n\n:::\n\n")
 
 ::: {.content-visible when-meta="rm_features"}
 
-
-:::
-
 ## Singlets (after features removal)
 
 ### PCA
@@ -394,6 +391,8 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   cat("\n\n:::\n\n")
 }
 ```
+
+:::
 
 ::: {.content-visible when-meta="found_markers"}
 
