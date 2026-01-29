@@ -7,6 +7,7 @@
 tar_demultiplex_hto(
   run_id = "ID_NAME",
   project_id = "PROJECT_ID",
+  run_path = NA,
   min_genes_detected = 200,
   max_genes_detected = 4000,
   mt_percent_cutoff = 5,
@@ -16,9 +17,11 @@ tar_demultiplex_hto(
 )
 }
 \arguments{
-\item{run_id}{Relative or absolute path to the directory that contains another directory whose name correspond to id and contains cellranger output (barcodes.tsv.gz, features.tsv.gz, matrix.mtx.gz).}
+\item{run_id}{Used to set the names of of the targets. Must be unique across all project}
 
 \item{project_id}{Used as the project name for the Seurat object.}
+
+\item{run_path}{Relative or absolute path to the directory that contains another directory whose name correspond to id and contains cellranger output (barcodes.tsv.gz, features.tsv.gz, matrix.mtx.gz).}
 
 \item{min_genes_detected}{Minimal number of genes detected in a cell. Default to 200.}
 

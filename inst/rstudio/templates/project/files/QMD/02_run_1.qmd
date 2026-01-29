@@ -27,7 +27,6 @@ quarto::write_yaml_metadata_block(
 #| warning: false
 library(targets)
 library(Seurat)
-
 ```
 
 # Quality Control
@@ -38,7 +37,7 @@ library(Seurat)
 tar_load(seurat_obj_RUN_ID_raw)
 ```
 
-The loaded Seurat object loaded from CellRanger contains **`r dim(seurat_obj_RUN_ID_raw)[2]`** cells.
+The loaded Seurat object loaded from CellRanger contains **`r as.integer(dim(seurat_obj_RUN_ID_raw)[2])`** cells.
 
 ```{r}
 #| message: false
@@ -48,10 +47,12 @@ The loaded Seurat object loaded from CellRanger contains **`r dim(seurat_obj_RUN
 #| fig-width: 15
 
 Seurat::VlnPlot(seurat_obj_RUN_ID_raw,
-                features = c("nFeature_RNA", "nCount_RNA", "percent.mt",
-                             "nFeature_HTO", "nCount_HTO"),
-                ncol = 5, alpha = 0.1
-                )
+  features = c(
+    "nFeature_RNA", "nCount_RNA", "percent.mt",
+    "nFeature_HTO", "nCount_HTO"
+  ),
+  ncol = 5, alpha = 0.1
+)
 ```
 
 For the following parts of the analysis we will only consider cells with:
@@ -73,12 +74,15 @@ This leave us with **`r dim(seurat_obj_RUN_ID_filter)[2]`** (`r round(100 * dim(
 #| fig-cap: "Violin plot of the features (after filtering)"
 #| fig-width: 10
 
-
+seurat_obj_RUN_ID_filter$clusters <- Seurat::Idents(seurat_obj_RUN_ID_filter)
+Seurat::Idents(seurat_obj_RUN_ID_filter) <- "orig.ident"
 Seurat::VlnPlot(seurat_obj_RUN_ID_filter,
-                features = c("nFeature_RNA", "nCount_RNA", "percent.mt",
-                             "nFeature_ADT", "nCount_ADT"),
-                ncol = 5, alpha = 0.1
-                )
+  features = c(
+    "nFeature_RNA", "nCount_RNA", "percent.mt",
+    "nFeature_ADT", "nCount_ADT"
+  ),
+  ncol = 5, alpha = 0.1
+)
 ```
 
 ## PCA
@@ -98,8 +102,9 @@ Seurat::VlnPlot(seurat_obj_RUN_ID_filter,
 #|     - PCA plot of the Seurat object after removing low quality cells
 #|     - Elbow plot of the PCA components
 
-DimPlot(seurat_obj_RUN_ID_filter, reduction = "pca")
-elbow <- ElbowPlot(seurat_obj_RUN_ID_filter)
+Seurat::Idents(seurat_obj_RUN_ID_filter) <- "clusters"
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "pca")
+elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_filter)
 max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
 plot(elbow)
 ```
@@ -121,7 +126,7 @@ Based on the @fig-pca-1-2, we will only use the first `r max_dim` Principal Comp
 #|   group: umap-tsne-1
 #|   description: UMAP of all cells that pass the QC<br />Color correspond to the cells clusters (identified using all cells that pass the first QC)
 
-DimPlot(seurat_obj_RUN_ID_filter, reduction = "umap")
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "umap")
 ```
 
 ```{r}
@@ -133,7 +138,7 @@ DimPlot(seurat_obj_RUN_ID_filter, reduction = "umap")
 #|   group: umap-tsne-1
 #|   description: UMAP of all cells that pass the QC<br />Color correspond to the cells clusters (identified using all cells that pass the first QC)
 
-DimPlot(seurat_obj_RUN_ID_filter, reduction = "tsne")
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "tsne")
 ```
 
 # Cell demultiplexing
@@ -153,8 +158,10 @@ table(seurat_obj_RUN_ID_hto_demux$HTO_classification.global) %>%
   as.data.frame() %>%
   dplyr::filter(Freq > 0) %>%
   reactable::reactable()
-table(seurat_obj_RUN_ID_hto_demux$HTO_classification.global,
-  seurat_obj_RUN_ID_hto_demux$HTO_classification ) %>%
+table(
+  seurat_obj_RUN_ID_hto_demux$HTO_classification.global,
+  seurat_obj_RUN_ID_hto_demux$HTO_classification
+) %>%
   as.data.frame() %>%
   dplyr::filter(Freq > 0) %>%
   reactable::reactable(defaultSorted = "Var1")
@@ -171,10 +178,10 @@ table(seurat_obj_RUN_ID_hto_demux$HTO_classification.global,
 #|   group: hto_demux
 #|   description: UMAP of all cells that pass the QC<br />Color correspond to the classification from the HTO demultiplexing
 
-DimPlot(seurat_obj_RUN_ID_hto_demux,
-        group.by = "HTO_classification",
-        reduction = "umap"
-        )
+Seurat::DimPlot(seurat_obj_RUN_ID_hto_demux,
+  group.by = "HTO_classification",
+  reduction = "umap"
+)
 ```
 
 ```{r}
@@ -186,10 +193,10 @@ DimPlot(seurat_obj_RUN_ID_hto_demux,
 #|   group: hto_demux
 #|   description: t-SNE of all cells that pass the QC<br />Color correspond to the classification from the HTO demultiplexing
 
-DimPlot(seurat_obj_RUN_ID_hto_demux,
-        group.by = "HTO_classification",
-        reduction = "tsne"
-        )
+Seurat::DimPlot(seurat_obj_RUN_ID_hto_demux,
+  group.by = "HTO_classification",
+  reduction = "tsne"
+)
 ```
 
 ```{r}
@@ -202,12 +209,12 @@ DimPlot(seurat_obj_RUN_ID_hto_demux,
 #|   group: hto-demux
 #|   description: Ridge plot of the cells HTO
 
-RidgePlot(seurat_obj_RUN_ID_hto_demux,
-          assay = "HTO",
-          features = row.names(seurat_obj_RUN_ID_hto_demux[["HTO"]]),
-          group.by = "HTO_classification",
-          ncol = 1
-          )
+Seurat::RidgePlot(seurat_obj_RUN_ID_hto_demux,
+  assay = "HTO",
+  features = row.names(seurat_obj_RUN_ID_hto_demux[["HTO"]]),
+  group.by = "HTO_classification",
+  ncol = 1
+)
 ```
 
 ```{r}
@@ -219,10 +226,10 @@ RidgePlot(seurat_obj_RUN_ID_hto_demux,
 #|   group: hto-demux
 #|   description: HTO Heatmap of the cells
 
-HTOHeatmap(seurat_obj_RUN_ID_hto_demux,
-           assay = "HTO",
-           ncells = 50000 # show all the cells
-           )
+Seurat::HTOHeatmap(seurat_obj_RUN_ID_hto_demux,
+  assay = "HTO",
+  ncells = 50000 # show all the cells
+)
 ```
 
 ## Non-negative cells (singlets + doublets)
@@ -243,8 +250,8 @@ HTOHeatmap(seurat_obj_RUN_ID_hto_demux,
 #|     - Elbow plot of the PCA components
 
 tar_load(seurat_obj_RUN_ID_non_neg)
-DimPlot(seurat_obj_RUN_ID_non_neg, reduction = "pca")
-elbow <- ElbowPlot(seurat_obj_RUN_ID_non_neg)
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg, reduction = "pca")
+elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_non_neg)
 max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
 plot(elbow)
 ```
@@ -260,8 +267,9 @@ To compute the next UMAP, t-SNE we used the PC 1 to `r max_dim`.
 #|   group: non_neg
 #|   description: UMAP of all non-negative cells<br />Color correspond to the classification from the HTO demultiplexing
 
-DimPlot(seurat_obj_RUN_ID_non_neg,
-        group.by = "HTO_classification",reduction='umap')
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
+  group.by = "HTO_classification", reduction = "umap"
+)
 ```
 
 ```{r}
@@ -273,10 +281,10 @@ DimPlot(seurat_obj_RUN_ID_non_neg,
 #|   group: non_neg
 #|   description: t-SNE of all non-negative cells<br />Color correspond to the classification from the HTO demultiplexing
 
-DimPlot(seurat_obj_RUN_ID_non_neg,
-        group.by = "HTO_classification",
-        reduction = "tsne"
-        )
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
+  group.by = "HTO_classification",
+  reduction = "tsne"
+)
 ```
 
 ## Singlets
@@ -301,9 +309,9 @@ DimPlot(seurat_obj_RUN_ID_non_neg,
 #|     - Elbow plot of the singlets PCA
 
 tar_load(seurat_obj_RUN_ID_singlets)
-Idents(seurat_obj_RUN_ID_singlets) <- "clusters_0.5" # used as default
-DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "pca")
-ElbowPlot(seurat_obj_RUN_ID_singlets, ndims = 30)
+Seurat::Idents(seurat_obj_RUN_ID_singlets) <- "clusters_0.5" # used as default
+Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "pca")
+Seurat::ElbowPlot(seurat_obj_RUN_ID_singlets, ndims = 30)
 ```
 
 ### UMAP
@@ -315,13 +323,13 @@ clusters_names <- seurat_obj_RUN_ID_singlets[[]] %>%
   colnames()
 cat("\n\n::: {.panel-tabset}\n\n")
 cat("\n\n#### HTO")
-DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "umap")
+Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "umap")
 for (i in clusters_names) {
   cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
-  DimPlot(
+  Seurat::DimPlot(
     seurat_obj_RUN_ID_singlets,
     group.by = i, reduction = "umap"
-    )
+  )
 }
 cat("\n\n:::\n\n")
 ```
@@ -354,10 +362,11 @@ cat("\n\n:::\n\n")
 
 if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   tar_load(seurat_obj_RUN_ID_feat_removed_singlets)
-  Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- "clusters_0.5" # used as default
-  DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
-  group.by = "HTO_classification", reduction = "pca")
-  ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
+  Seurat::Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- "clusters_0.5" # used as default
+  Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+    group.by = "HTO_classification", reduction = "pca"
+  )
+  Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
 }
 ```
 
@@ -372,11 +381,12 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
     colnames()
   cat("\n\n::: {.panel-tabset}\n\n")
   cat("\n\n#### HTO")
-  DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
-          group.by = "HTO_classification", reduction = "umap")
+  Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+    group.by = "HTO_classification", reduction = "umap"
+  )
   for (i in clusters_names) {
     cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
-    DimPlot(
+    Seurat::DimPlot(
       seurat_obj_RUN_ID_feat_removed_singlets,
       group.by = i, reduction = "umap"
     )
@@ -419,10 +429,10 @@ The plot next represent the top 10 up-regulated markers of each clusters.
 
 ```{r}
 #| results: asis
-FeaturePlotWithCluster = function(obj = NULL,
-                                  features = "",
-                                  clusters_to_use = "clusters_0.5",
-                                  size_to_use = 6) {
+FeaturePlotWithCluster <- function(obj = NULL,
+                                   features = "",
+                                   clusters_to_use = "clusters_0.5",
+                                   size_to_use = 6) {
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   } else if (!is.character(features)) {
@@ -432,10 +442,10 @@ FeaturePlotWithCluster = function(obj = NULL,
   } else if (!is.numeric(size_to_use) || size_to_use < 1) {
     size_to_use <- 6
   }
-  p <- FeaturePlot(obj, features = features, combine = FALSE)
+  p <- Seurat::FeaturePlot(obj, features = features, combine = FALSE)
   for (i in seq_along(p)) {
     p[[i]]$data$clusters <- obj@meta.data[["clusters_0.5"]]
-    p2 <- LabelClusters(plot = p[[i]], id = "clusters", size = size_to_use)
+    p2 <- Seurat::LabelClusters(plot = p[[i]], id = "clusters", size = size_to_use)
     plot(p2)
   }
 }
@@ -444,10 +454,11 @@ if (tar_exist_objects("markers_RUN_ID")) {
   cat("\n\n::: {.panel-tabset}\n\n")
   for (G in sort(unique(top10$gene))) {
     cat("\n\n###", G, "\n\n")
-    FeaturePlotWithCluster(
+    Seurat::FeaturePlotWithCluster(
       ifelse(tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets"),
-         seurat_obj_RUN_ID_feat_removed_singlets,
-         seurat_obj_RUN_ID_singlets),
+        seurat_obj_RUN_ID_feat_removed_singlets,
+        seurat_obj_RUN_ID_singlets
+      ),
       features = G
     )
   }
@@ -483,12 +494,12 @@ if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
 #|   description: Azimuth annotations<br />Color represents the clusters<br />L1 Annotations (broadest)
 
 if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
-  DimPlot(
+  Seurat::DimPlot(
     seurat_obj_RUN_ID_azimuth,
     reduction = "umap",
     split.by = "predicted.celltype.l1",
     ncol = 3, seed = 42
-    )
+  )
 }
 ```
 
@@ -505,12 +516,12 @@ if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
 #|   description: Azimuth annotations<br />Color represents the clusters<br />L2 Annotations (mid level)
 
 if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
-  DimPlot(
+  Seurat::DimPlot(
     seurat_obj_RUN_ID_azimuth,
     reduction = "umap",
     split.by = "predicted.celltype.l2",
     ncol = 3, seed = 42
-    )
+  )
 }
 ```
 
@@ -527,12 +538,12 @@ if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
 #|   description: Azimuth annotations<br />Color represents the clusters<br />L3 Annotations (detailed)
 
 if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
-  DimPlot(
+  Seurat::DimPlot(
     seurat_obj_RUN_ID_azimuth,
     reduction = "umap",
     split.by = "predicted.celltype.l3",
     ncol = 3, seed = 42
-    )
+  )
 }
 ```
 :::
@@ -577,4 +588,3 @@ import pynndescend
 import session_info
 session_info.show()
 ```
-

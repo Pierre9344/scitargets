@@ -65,7 +65,6 @@ demultiplex_cell <- function(
             normalization.method = "CLR"
           ) %>%
           Seurat::HTODemux(
-            rd_dup,
             assay = "HTO",
             positive.quantile = 0.99,
             seed = local_seed
