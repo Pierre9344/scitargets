@@ -29,7 +29,7 @@ tar_demultiplex_hto(
 
 \item{mt_percent_cutoff}{Cutoff for the percentage of mitochondrial counts a cell can have.}
 
-\item{singlets_feat_to_remove}{If not NULL, a character variable of features (genes) to remove from the singlets.}
+\item{singlets_feat_to_remove}{If not NULL, a character variable indicating a targets step that contains the name of features (genes) to remove from the singlets.}
 
 \item{singlets_dim_to_use}{PCA dimensions to use when computing UMAP and t-SNE (only used after extracting the singlets cells).}
 

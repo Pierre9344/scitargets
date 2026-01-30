@@ -191,7 +191,7 @@ tar_demultiplex_hto <- function(
             feat_to_remove = feats
           ),
           list(
-            seurat = base::as.symbol(seurat_obj_target_name(run_id, "non_neg")),
+            seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
             singlets_dim = singlets_dim_to_use,
             feats = base::as.symbol(singlets_feat_to_remove)
           )
