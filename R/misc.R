@@ -3,5 +3,5 @@ seurat_obj_target_name <- function(id, suffix) {
 }
 
 markers_target_name <- function(id) {
-  sprintf("markers_%", id)
+  sprintf("markers_%s", id)
 }

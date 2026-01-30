@@ -322,8 +322,12 @@ clusters_names <- seurat_obj_RUN_ID_singlets[[]] %>%
   dplyr::select(starts_with("clusters_")) %>%
   colnames()
 cat("\n\n::: {.panel-tabset}\n\n")
-cat("\n\n#### HTO")
-Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "umap")
+cat("\n\n#### HTO\n\n")
+p <- Seurat::DimPlot(
+  seurat_obj_RUN_ID_singlets,
+  group.by = "HTO_classification", reduction = "umap"
+)
+plot(p)
 for (i in clusters_names) {
   cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
   p <- Seurat::DimPlot(
@@ -379,13 +383,14 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
     colnames()
   cat("\n\n::: {.panel-tabset}\n\n")
   cat("\n\n#### HTO\n\n")
-  p <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+  p <- DimPlot(
+    seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "umap"
   )
   plot(p)
   for (i in clusters_names) {
     cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
-    p <- Seurat::DimPlot(
+    p <- DimPlot(
       seurat_obj_RUN_ID_feat_removed_singlets,
       group.by = i, reduction = "umap"
     )

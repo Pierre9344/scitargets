@@ -147,7 +147,7 @@ tar_demultiplex_hto <- function(
           mt_cutoff = mt_percent_cutoff
         )
       ),
-      description = base::paste0(run_id, ": fitered low quality cells based on the number of detected genes and the percentage of mitochondrial genes (", min_genes_detected, " < nFeature_RNA < ", max_genes_detected, " & percent.mt < ", mt_percent_cutoff, ").")
+      description = base::paste0(run_id, ": filtered low quality cells based on the number of detected genes and the percentage of mitochondrial genes (", min_genes_detected, " < nFeature_RNA < ", max_genes_detected, " and percent.mt < ", mt_percent_cutoff, ").")
     ),
     targets::tar_target_raw(
       name = seurat_obj_target_name(run_id, "hto_demux"),
@@ -220,11 +220,15 @@ tar_demultiplex_hto <- function(
                 only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25
               ),
               list(
-                seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets"))
+                seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
+                cluster_to_use = singlets_clusters_to_use
               )
             )
           },
-          description = base::paste0(run_id, ": Markers identified for the different cells clusters (", singlets_clusters_to_use, ")")
+          description = base::paste0(
+            run_id, ": Markers identified for the different cells clusters (",
+            singlets_clusters_to_use, ")"
+            )
         ),
         targets::tar_target_raw(
           name = seurat_obj_target_name(run_id, "azimuth"),
@@ -241,6 +245,7 @@ tar_demultiplex_hto <- function(
         )
       )
     } else {
+      print("branch taken")
       hto_demux_steps <- c(
         hto_demux_steps,
         targets::tar_target_raw(
@@ -248,14 +253,16 @@ tar_demultiplex_hto <- function(
           command = {
             base::substitute(
               Seurat::FindAllMarkers(
-                seurat,
+                object = seurat,
                 assay = "SCT",
                 group.by = cluster_to_use,
-                random.seed = targets::tar_seed_get(),
+                random.seed = seed,
                 only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25
               ),
               list(
-                seurat = base::as.symbol(seurat_obj_target_name(run_id, "feat_removed_singlets"))
+                seurat = base::as.symbol(seurat_obj_target_name(run_id, "feat_removed_singlets")),
+                cluster_to_use = singlets_clusters_to_use,
+                seed = targets::tar_seed_get()
               )
             )
           },
