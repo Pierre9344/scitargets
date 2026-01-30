@@ -378,7 +378,7 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
     dplyr::select(starts_with("clusters_")) %>%
     colnames()
   cat("\n\n::: {.panel-tabset}\n\n")
-  cat("\n\n#### HTO")
+  cat("\n\n#### HTO\n\n")
   p <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "umap"
   )
@@ -528,7 +528,7 @@ if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
 }
 ```
 
-### L3
+## L3
 
 ```{r}
 #| label: fig-azimuth-3
