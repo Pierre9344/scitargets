@@ -26,7 +26,7 @@ utils::globalVariables(c(
 #' @param max_genes_detected Maximal number of genes detected in a cell. Default to 4000.
 #' @param mt_percent_cutoff Cutoff for the percentage of mitochondrial counts a cell can have.
 #' @param singlets_dim_to_use PCA dimensions to use when computing UMAP and t-SNE (only used after extracting the singlets cells).
-#' @param singlets_feat_to_remove If not NULL, a character variable of features (genes) to remove from the singlets.
+#' @param singlets_feat_to_remove If not NULL, a character variable indicating a targets step that contains the name of features (genes) to remove from the singlets.
 #' @param singlets_clusters_to_use Name of cell cluster to use when identifying markers or running azimuth celltype annotation
 #'
 #' @returns A list describing pipeline steps that can be interpreted by targets
