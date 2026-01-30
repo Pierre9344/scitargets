@@ -10,7 +10,7 @@ params:
 
 ```{r}
 #| output: asis
-#| include: false
+#| echo: false
 
 # Check if azimuth was used to realize an automatic annotation of celltypes
 quarto::write_yaml_metadata_block(
