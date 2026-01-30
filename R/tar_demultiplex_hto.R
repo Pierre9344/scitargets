@@ -190,7 +190,7 @@ tar_demultiplex_hto <- function(
           list(
             seurat = base::as.symbol(seurat_obj_target_name(run_id, "non_neg")),
             singlets_dim = singlets_dim_to_use,
-            feats = singlets_feat_to_remove
+            feats = base::as.symbol(singlets_feat_to_remove)
           )
         ),
         description = base::paste0(run_id, ": singlets cell without the non desired features.")
