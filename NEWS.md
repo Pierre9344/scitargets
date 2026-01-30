@@ -1,3 +1,7 @@
+# scitargets 0.4.0
+
+-   Add a run_azimuth parameters to `tar_demultiplex_hto`
+
 # scitargets 0.3.0
 
 -   Correction of a bug in the `demultiplex_cell` function
