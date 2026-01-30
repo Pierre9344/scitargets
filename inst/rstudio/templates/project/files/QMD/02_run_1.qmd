@@ -326,10 +326,11 @@ cat("\n\n#### HTO")
 Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "umap")
 for (i in clusters_names) {
   cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
-  Seurat::DimPlot(
+  p <- Seurat::DimPlot(
     seurat_obj_RUN_ID_singlets,
     group.by = i, reduction = "umap"
   )
+  plot(p)
 }
 cat("\n\n:::\n\n")
 ```
@@ -378,15 +379,17 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
     colnames()
   cat("\n\n::: {.panel-tabset}\n\n")
   cat("\n\n#### HTO")
-  Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+  p <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "umap"
   )
+  plot(p)
   for (i in clusters_names) {
     cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
-    Seurat::DimPlot(
+    p <- Seurat::DimPlot(
       seurat_obj_RUN_ID_feat_removed_singlets,
       group.by = i, reduction = "umap"
     )
+    plot(p)
   }
   cat("\n\n:::\n\n")
 }
@@ -453,13 +456,14 @@ if (tar_exist_objects("markers_RUN_ID")) {
   cat("\n\n::: {.panel-tabset}\n\n")
   for (G in sort(unique(top10$gene))) {
     cat("\n\n###", G, "\n\n")
-    Seurat::FeaturePlotWithCluster(
+    p <- Seurat::FeaturePlotWithCluster(
       ifelse(tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets"),
         seurat_obj_RUN_ID_feat_removed_singlets,
         seurat_obj_RUN_ID_singlets
       ),
       features = G
     )
+    plot(p)
   }
   cat("\n\n:::\n\n")
 }
