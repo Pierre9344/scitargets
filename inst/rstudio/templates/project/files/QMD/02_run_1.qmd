@@ -420,7 +420,7 @@ if (tar_exist_objects("markers_RUN_ID")) {
     dplyr::filter(p_val_adj < 0.01) %>%
     dplyr::group_by(cluster)
   markers %>%
-    count() %>%
+    dplyr::count() %>%
     reactable::reactable()
   top10 <- markers %>%
     dplyr::top_n(n = 10, wt = avg_log2FC)
