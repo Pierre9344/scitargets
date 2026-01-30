@@ -325,7 +325,7 @@ cat("\n\n::: {.panel-tabset}\n\n")
 cat("\n\n#### HTO")
 Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "umap")
 for (i in clusters_names) {
-  cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
+  cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
   p <- Seurat::DimPlot(
     seurat_obj_RUN_ID_singlets,
     group.by = i, reduction = "umap"
@@ -384,7 +384,7 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   )
   plot(p)
   for (i in clusters_names) {
-    cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "))
+    cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
     p <- Seurat::DimPlot(
       seurat_obj_RUN_ID_feat_removed_singlets,
       group.by = i, reduction = "umap"
