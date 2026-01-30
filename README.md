@@ -45,3 +45,15 @@ tar_make()
 ```
 
 Check the vignettes for more details.
+
+## Azimuth annotation
+
+Build-in Azimuth annotation are currently only available for the (human) pbmc-ref of the SeuratData package.
+
+It is also recommanded to use:
+
+-  Seurat 5.3.1.1000
+-  SeuratObject 5.2.0
+-  Azimuth 0.5.0
+
+Other versions may be compatible but not tested

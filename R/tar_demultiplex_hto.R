@@ -92,14 +92,16 @@ tar_demultiplex_hto <- function(
           "path" = r_path,
           "min_genes_detected" = min_g,
           "max_genes_detected" = max_g,
-          "mt_cutoff" = mt
+          "mt_cutoff" = mt,
+          "singlets_clusters_for_markers" = singlets_clusters
         ),
         env = list(
           r_id = run_id, p_id = project_id,
           r_path = run_path,
           min_g = min_genes_detected,
           max_g = max_genes_detected,
-          mt = mt_percent_cutoff
+          mt = mt_percent_cutoff,
+          singlets_clusters = singlets_clusters_to_use
         )
       ),
       description = base::paste0("parameters of the run ", run_id, " from the ", project_id, " project.")
@@ -245,7 +247,6 @@ tar_demultiplex_hto <- function(
         )
       )
     } else {
-      print("branch taken")
       hto_demux_steps <- c(
         hto_demux_steps,
         targets::tar_target_raw(
