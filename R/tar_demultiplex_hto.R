@@ -37,21 +37,24 @@ utils::globalVariables(c(
 #' # Check the "get-started" and "targets-factories" vignettes for examples
 #' }
 tar_demultiplex_hto <- function(
-    run_id = "ID_NAME",
-    project_id = "PROJECT_ID",
-    run_path = NA,
-    min_genes_detected = 200,
-    max_genes_detected = 4000,
-    mt_percent_cutoff = 5,
-    singlets_feat_to_remove = NULL,
-    singlets_dim_to_use = 1:15,
-    singlets_clusters_to_use = NULL) {
+  run_id = "ID_NAME",
+  project_id = "PROJECT_ID",
+  run_path = NA,
+  min_genes_detected = 200,
+  max_genes_detected = 4000,
+  mt_percent_cutoff = 5,
+  singlets_feat_to_remove = NULL,
+  singlets_dim_to_use = 1:15,
+  singlets_clusters_to_use = NULL
+) {
   if (is.na(run_path)) {
     stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 1")
   } else if (fs::is_absolute_path(run_path) &&
-             !startsWith(normalizePath(run_id, winslash = "/", mustWork = F),
-                         normalizePath("./data/cellranger_output/", winslash = "/", mustWork = F))
-             ) {
+    !startsWith(
+      normalizePath(run_id, winslash = "/", mustWork = F),
+      normalizePath("./data/cellranger_output/", winslash = "/", mustWork = F)
+    )
+  ) {
     stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 2")
   } else if (!dir.exists(fs::path("./data/cellranger_output/", run_path))) {
     stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 3")
@@ -177,7 +180,7 @@ tar_demultiplex_hto <- function(
 
   # Removal non-desired features if they are specified
   if (!is.null(singlets_feat_to_remove)) {
-    c(
+    hto_demux_steps <- c(
       hto_demux_steps,
       targets::tar_target_raw(
         name = seurat_obj_target_name(run_id, "feat_removed_singlets"),
@@ -203,7 +206,7 @@ tar_demultiplex_hto <- function(
   # - Add azimuth annotations
   if (!is.null(singlets_clusters_to_use)) {
     if (is.null(singlets_feat_to_remove)) {
-      c(
+      hto_demux_steps <- c(
         hto_demux_steps,
         targets::tar_target_raw(
           name = markers_target_name(run_id),
@@ -238,7 +241,7 @@ tar_demultiplex_hto <- function(
         )
       )
     } else {
-      c(
+      hto_demux_steps <- c(
         hto_demux_steps,
         targets::tar_target_raw(
           name = markers_target_name(run_id),
