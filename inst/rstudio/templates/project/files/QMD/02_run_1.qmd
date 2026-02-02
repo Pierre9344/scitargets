@@ -458,16 +458,20 @@ FeaturePlotWithCluster <- function(obj = NULL,
 }
 
 if (tar_exist_objects("markers_RUN_ID")) {
+  obj <- NA
+  if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
+    obj <-  seurat_obj_RUN_ID_feat_removed_singlets
+  } else {
+    obj <- seurat_obj_RUN_ID_singlets
+  }
   cat("\n\n::: {.panel-tabset}\n\n")
   for (G in sort(unique(top10$gene))) {
     cat("\n\n###", G, "\n\n")
-    p <- Seurat::FeaturePlotWithCluster(
-      ifelse(tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets"),
-        seurat_obj_RUN_ID_feat_removed_singlets,
-        seurat_obj_RUN_ID_singlets
-      ),
-      features = G
+    cat("The ", G, " gene is among the top 10 markers of the cluster(s): ",
+    top10 %>% dplyr::filter(gene==G) %>% dplyr::pull(cluster) %>%
+      paste(collapse = ', '), ".\n\n", sep = ""
     )
+    p <- Seurat::FeaturePlotWithCluster(obj, features = G)
     plot(p)
   }
   cat("\n\n:::\n\n")
