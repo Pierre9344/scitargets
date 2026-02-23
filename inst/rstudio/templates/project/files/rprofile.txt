@@ -1,0 +1,33 @@
+if (interactive() && !targets::tar_active()) {
+  print("Executing .Rprofile script to load libraries and create _targets.yaml file for the QMD document")
+}
+
+# The code inside the .Rprofile file is executed when the project is opened or a targets step is launched.
+library(targets)
+library(tarchetypes)
+library(scitargets)
+
+# When executing the code chunk of a QMD document in Rstudio or another IDE, the working
+# directory is the one that contains the QMD document. This stop targets to find the _targets
+# folder. The addition of a _targets.yaml files in the same folder correct this behavior.
+
+# Create / correct a config file to indicates the targets store and script to the project.
+if (dir.exists(paste0(here::here(), "/QMD/"))) {
+  if (!file.exists(paste0(here::here(), "/QMD/_targets.yaml"))) {
+    # Create a config file to indicates the targets store and script to the project.
+    targets::tar_config_set(store = paste0(here::here(), "/_targets"))
+    targets::tar_config_set(script = paste0(here::here(), "/_targets.R"))
+    file.copy(paste0(here::here(), "/_targets.yaml"), paste0(here::here(), "/QMD/_targets.yaml"))
+    file.remove(paste0(here::here(), "/_targets.yaml"))
+  } else {
+    local_yaml <- yaml::read_yaml(paste0(here::here(), "/QMD/_targets.yaml"))
+    if ((local_yaml$main$store != paste0(here::here(), "/_targets")) || (local_yaml$main$script != paste0(here::here(), "/_targets.R"))) {
+      targets::tar_config_set(store = paste0(here::here(), "/_targets"))
+      targets::tar_config_set(script = paste0(here::here(), "/_targets.R"))
+      file.copy(paste0(here::here(), "/_targets.yaml"),
+                paste0(here::here(), "/QMD/_targets.yaml"),
+                overwrite = T)
+      file.remove(paste0(here::here(), "/_targets.yaml"))
+    }
+  }
+}

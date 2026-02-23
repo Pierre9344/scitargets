@@ -1,0 +1,602 @@
+---
+title: |
+  `r params$run`
+abstract: |
+  This document describes the QC realized on the single-cell samples from the **`r params$run`** sequencing run.
+  This run is part of the **`r targets::tar_read_raw(paste0("parameters_", params$run))$project`** project.
+params:
+  run: RUN_ID
+---
+
+```{r}
+#| output: asis
+#| echo: false
+
+# Check if azimuth was used to realize an automatic annotation of celltypes
+quarto::write_yaml_metadata_block(
+  rm_features = tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets"),
+  use_azimuth = tar_exist_objects("seurat_obj_RUN_ID_azimuth"),
+  found_markers = tar_exist_objects("markers_RUN_ID")
+)
+```
+
+# Libraries
+
+```{r}
+#| message: false
+#| warning: false
+library(targets)
+library(Seurat)
+```
+
+# Quality Control
+
+## Feature counts and percentage of mitochondrial counts
+
+```{r}
+tar_load(seurat_obj_RUN_ID_raw)
+```
+
+The loaded Seurat object loaded from CellRanger contains **`r as.integer(dim(seurat_obj_RUN_ID_raw)[2])`** cells.
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-violin-feature
+#| fig-cap: "Violin plot of the features"
+#| fig-width: 15
+
+Seurat::VlnPlot(seurat_obj_RUN_ID_raw,
+  features = c(
+    "nFeature_RNA", "nCount_RNA", "percent.mt",
+    "nFeature_HTO", "nCount_HTO"
+  ),
+  ncol = 5, alpha = 0.1
+)
+```
+
+For the following parts of the analysis we will only consider cells with:
+
+-   `r tar_read(parameters_RUN_ID)$min_genes_detected` \< nFeature_RNA \< `r tar_read(parameters_RUN_ID)$max_genes_detected`
+
+-   percent.mt \< `r tar_read(parameters_RUN_ID)$mt_cutoff`
+
+```{r}
+tar_load(seurat_obj_RUN_ID_filter)
+```
+
+This leave us with **`r dim(seurat_obj_RUN_ID_filter)[2]`** (`r round(100 * dim(seurat_obj_RUN_ID_filter)[2] / dim(seurat_obj_RUN_ID_raw)[2], digit = 2)`%) cells that pass this QC.
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-violin-feature-2
+#| fig-cap: "Violin plot of the features (after filtering)"
+#| fig-width: 10
+
+seurat_obj_RUN_ID_filter$clusters <- Seurat::Idents(seurat_obj_RUN_ID_filter)
+Seurat::Idents(seurat_obj_RUN_ID_filter) <- "orig.ident"
+Seurat::VlnPlot(seurat_obj_RUN_ID_filter,
+  features = c(
+    "nFeature_RNA", "nCount_RNA", "percent.mt",
+    "nFeature_ADT", "nCount_ADT"
+  ),
+  ncol = 5, alpha = 0.1
+)
+```
+
+## PCA
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-pca-1
+#| fig-cap: "PCA plot of the cells"
+#| layout-ncol: 2
+#| fig-subcap:
+#|   - PCA plot of the cells that passed the quality control
+#|   - Elbow plot
+#| lightbox:
+#|   group: pca-elbow-1
+#|   description:
+#|     - PCA plot of the Seurat object after removing low quality cells
+#|     - Elbow plot of the PCA components
+
+Seurat::Idents(seurat_obj_RUN_ID_filter) <- "clusters"
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "pca")
+elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_filter)
+max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
+plot(elbow)
+```
+
+Based on the @fig-pca-1-2, we will only use the first `r max_dim` Principal Components of the PCA to compute the next UMAP and t-SNE.
+
+:::{.callout-note collapse=false appearance='default' icon=true}
+## Selection of the number of component to use (note)
+- The PC to use for the UMAP and t-SNE were selected as the ones with standard deviation superior to the median of all standard deviation.
+:::
+
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-umap-1
+#| fig-cap: UMAP of all cells
+#| lightbox:
+#|   group: umap-tsne-1
+#|   description: UMAP of all cells that pass the QC<br />Color correspond to the cells clusters (identified using all cells that pass the first QC)
+
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "umap")
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-tsne-1
+#| fig-cap: UMAP of all cells
+#| lightbox:
+#|   group: umap-tsne-1
+#|   description: UMAP of all cells that pass the QC<br />Color correspond to the cells clusters (identified using all cells that pass the first QC)
+
+Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "tsne")
+```
+
+# Cell demultiplexing
+
+```{r}
+#| message: false
+#| warning: false
+#| label: tbl-hto-demux
+#| tbl-cap: "Number of Singlets, Negatives, and Doublets after the HTO demultiplexage"
+#| tbl-subcap:
+#|  - "Simple"
+#|  - "Detailed"
+#| layout-ncol: 2
+
+tar_load(seurat_obj_RUN_ID_hto_demux)
+table(seurat_obj_RUN_ID_hto_demux$HTO_classification.global) %>%
+  as.data.frame() %>%
+  dplyr::filter(Freq > 0) %>%
+  reactable::reactable()
+table(
+  seurat_obj_RUN_ID_hto_demux$HTO_classification.global,
+  seurat_obj_RUN_ID_hto_demux$HTO_classification
+) %>%
+  as.data.frame() %>%
+  dplyr::filter(Freq > 0) %>%
+  reactable::reactable(defaultSorted = "Var1")
+```
+
+## All cells
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-HTO-demux-umap
+#| fig-cap: UMAP of all cells
+#| lightbox:
+#|   group: hto_demux
+#|   description: UMAP of all cells that pass the QC<br />Color correspond to the classification from the HTO demultiplexing
+
+Seurat::DimPlot(seurat_obj_RUN_ID_hto_demux,
+  group.by = "HTO_classification",
+  reduction = "umap"
+)
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-HTO-demux-tsne
+#| fig-cap: t-SNE of all cells
+#| lightbox:
+#|   group: hto_demux
+#|   description: t-SNE of all cells that pass the QC<br />Color correspond to the classification from the HTO demultiplexing
+
+Seurat::DimPlot(seurat_obj_RUN_ID_hto_demux,
+  group.by = "HTO_classification",
+  reduction = "tsne"
+)
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-HTO-demux-ridgeplot
+#| fig-cap: Ridge plot of the HTOs
+#| fig-height: 10
+#| lightbox:
+#|   group: hto-demux
+#|   description: Ridge plot of the cells HTO
+
+Seurat::RidgePlot(seurat_obj_RUN_ID_hto_demux,
+  assay = "HTO",
+  features = row.names(seurat_obj_RUN_ID_hto_demux[["HTO"]]),
+  group.by = "HTO_classification",
+  ncol = 1
+)
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-HTO-demux-heatmap
+#| fig-cap: Heatmap of the HTOs
+#| lightbox:
+#|   group: hto-demux
+#|   description: HTO Heatmap of the cells
+
+Seurat::HTOHeatmap(seurat_obj_RUN_ID_hto_demux,
+  assay = "HTO",
+  ncells = 50000 # show all the cells
+)
+```
+
+## Non-negative cells (singlets + doublets)
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-nonneg-pca
+#| fig-cap: "PCA plot of the cells"
+#| layout-ncol: 2
+#| fig-subcap:
+#|   - PCA plot of the cells that passed the quality control
+#|   - Elbow plot
+#| lightbox:
+#|   group: pca-elbow-1
+#|   description:
+#|     - PCA plot of the Seurat object after removing low quality cells
+#|     - Elbow plot of the PCA components
+
+tar_load(seurat_obj_RUN_ID_non_neg)
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg, reduction = "pca")
+elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_non_neg)
+max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
+plot(elbow)
+```
+
+To compute the next UMAP, t-SNE we used the PC 1 to `r max_dim`.
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-nonneg-umap
+#| fig-cap: UMAP of all cells
+#| lightbox:
+#|   group: non_neg
+#|   description: UMAP of all non-negative cells<br />Color correspond to the classification from the HTO demultiplexing
+
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
+  group.by = "HTO_classification", reduction = "umap"
+)
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-nonneg-tsne
+#| fig-cap: t-SNE of all cells
+#| lightbox:
+#|   group: non_neg
+#|   description: t-SNE of all non-negative cells<br />Color correspond to the classification from the HTO demultiplexing
+
+Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
+  group.by = "HTO_classification",
+  reduction = "tsne"
+)
+```
+
+## Singlets
+
+### PCA
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-pca-singlet
+#| fig-cap: "UMAP of the singlets"
+#| layout: "[[1,1], [1]]"
+#| fig-subcap:
+#|   - HTO classification
+#|   - Seurat clusters
+#|   - Elbow plot of the PCA
+#| lightbox:
+#|   group: pca-singlets
+#|   description:
+#|     - PCA of the singlets<br/>Color represent the HTO
+#|     - PCA of the singlets<br/>Color represent the clusters identified by Seurat
+#|     - Elbow plot of the singlets PCA
+
+tar_load(seurat_obj_RUN_ID_singlets)
+Seurat::Idents(seurat_obj_RUN_ID_singlets) <- "clusters_0.5" # used as default
+Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "pca")
+Seurat::ElbowPlot(seurat_obj_RUN_ID_singlets, ndims = 30)
+```
+
+### UMAP
+
+```{r}
+#| output: asis
+clusters_names <- seurat_obj_RUN_ID_singlets[[]] %>%
+  dplyr::select(starts_with("clusters_")) %>%
+  colnames()
+cat("\n\n::: {.panel-tabset}\n\n")
+cat("\n\n#### HTO\n\n")
+p <- Seurat::DimPlot(
+  seurat_obj_RUN_ID_singlets,
+  group.by = "HTO_classification", reduction = "umap"
+)
+plot(p)
+for (i in clusters_names) {
+  cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
+  p <- Seurat::DimPlot(
+    seurat_obj_RUN_ID_singlets,
+    group.by = i, reduction = "umap"
+  )
+  plot(p)
+}
+cat("\n\n:::\n\n")
+```
+
+::: {.content-visible when-meta="rm_features"}
+
+## Singlets (after features removal)
+
+### PCA
+
+```{r}
+#| message: false
+#| warning: false
+#| label: fig-pca-singlet-2
+#| fig-cap: "UMAP of the singlets (after features removal)"
+#| layout: "[[1,1], [1]]"
+#| fig-subcap:
+#|   - HTO classification
+#|   - Seurat clusters
+#|   - Elbow plot of the PCA
+#| lightbox:
+#|   group: pca-singlets-2
+#|   description:
+#|     - PCA of the singlets<br/>Color represent the HTO
+#|     - PCA of the singlets<br/>Color represent the clusters identified by Seurat
+#|     - Elbow plot of the singlets PCA
+
+if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
+  tar_load(seurat_obj_RUN_ID_feat_removed_singlets)
+  Seurat::Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- "clusters_0.5" # used as default
+  Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+    group.by = "HTO_classification", reduction = "pca"
+  )
+  Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
+}
+```
+
+### UMAP
+
+```{r}
+#| output: asis
+
+if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
+  clusters_names <- seurat_obj_RUN_ID_feat_removed_singlets[[]] %>%
+    dplyr::select(starts_with("clusters_")) %>%
+    colnames()
+  cat("\n\n::: {.panel-tabset}\n\n")
+  cat("\n\n#### HTO\n\n")
+  p <- DimPlot(
+    seurat_obj_RUN_ID_feat_removed_singlets,
+    group.by = "HTO_classification", reduction = "umap"
+  )
+  plot(p)
+  for (i in clusters_names) {
+    cat("\n\n#### ", stringr::str_replace(i, "clusters_", "resolution: "), "\n\n")
+    p <- DimPlot(
+      seurat_obj_RUN_ID_feat_removed_singlets,
+      group.by = i, reduction = "umap"
+    )
+    plot(p)
+  }
+  cat("\n\n:::\n\n")
+}
+```
+
+:::
+
+::: {.content-visible when-meta="found_markers"}
+
+# Markers of the clusters
+
+## Number of markers identified
+
+```{r}
+#| label: tbl-markers
+#| tbl-cap: "Markers of each clusters"
+#| tbl-subcap:
+#|   - "Number of significant (padj < 0.01) for each cluster"
+#|   - "Top10 up-regulated markers of each cluster (in term of fold-change)"
+
+if (tar_exist_objects("markers_RUN_ID")) {
+  markers <- tar_read(markers_RUN_ID) %>%
+    dplyr::filter(p_val_adj < 0.01) %>%
+    dplyr::group_by(cluster)
+  markers %>%
+    dplyr::count() %>%
+    reactable::reactable()
+  top10 <- markers %>%
+    dplyr::top_n(n = 10, wt = avg_log2FC)
+  reactable::reactable(top10)
+}
+```
+
+A total of `r ifelse(exists("markers"), length(unique(markers$gene)), 0)` genes were identified as markers for at least one cluster.
+
+## Feature plots
+
+The plot next represent the top 10 up-regulated markers of each clusters.
+
+```{r}
+#| results: asis
+FeaturePlotWithCluster <- function(obj = NULL,
+                                   features = "",
+                                   clusters_to_use = "clusters_0.5",
+                                   size_to_use = 6) {
+  if (is.null(obj)) {
+    stop("obj must be a Seurat object")
+  } else if (!is.character(features)) {
+    stop("features must be a character vector present in obj@meta.data")
+  } else if (!clusters_to_use %in% colnames(obj@meta.data)) {
+    stop("clusters_to_use must be a character vector present in obj@meta.data")
+  } else if (!is.numeric(size_to_use) || size_to_use < 1) {
+    size_to_use <- 6
+  }
+  p <- Seurat::FeaturePlot(obj, features = features, combine = FALSE)
+  for (i in seq_along(p)) {
+    p[[i]]$data$clusters <- obj@meta.data[["clusters_0.5"]]
+    p2 <- Seurat::LabelClusters(plot = p[[i]], id = "clusters", size = size_to_use)
+    plot(p2)
+  }
+}
+
+if (tar_exist_objects("markers_RUN_ID")) {
+  obj <- NA
+  if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
+    obj <-  seurat_obj_RUN_ID_feat_removed_singlets
+  } else {
+    obj <- seurat_obj_RUN_ID_singlets
+  }
+  cat("\n\n::: {.panel-tabset}\n\n")
+  for (G in sort(unique(top10$gene))) {
+    cat("\n\n###", G, "\n\n")
+    cat("The ", G, " gene is among the top 10 markers of the cluster(s): ",
+    top10 %>% dplyr::filter(gene==G) %>% dplyr::pull(cluster) %>%
+      paste(collapse = ', '), ".\n\n", sep = ""
+    )
+    p <- Seurat::FeaturePlotWithCluster(obj, features = G)
+    plot(p)
+  }
+  cat("\n\n:::\n\n")
+}
+```
+
+:::
+
+::: {.content-visible when-meta="use_azimuth"}
+
+# Azimuth automatic celltypes annotation
+
+**Azimuth is not implemented next. Will be in next version**
+
+```{r}
+if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
+  tar_load(seurat_obj_RUN_ID_azimuth)
+}
+```
+
+::: panel-tabset
+## L1
+
+```{r}
+#| label: fig-azimuth-1
+#| fig-cap: Azimuth annotation (first level)
+#| column: page
+#| fig-width: 20
+#| fig-height: 10
+#| lightbox:
+#|   group: azimuth
+#|   description: Azimuth annotations<br />Color represents the clusters<br />L1 Annotations (broadest)
+
+if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
+  Seurat::DimPlot(
+    seurat_obj_RUN_ID_azimuth,
+    reduction = "umap",
+    split.by = "predicted.celltype.l1",
+    ncol = 3, seed = 42
+  )
+}
+```
+
+## L2
+
+```{r}
+#| label: fig-azimuth-2
+#| fig-cap: Azimuth annotation (second level)
+#| column: page
+#| fig-width: 20
+#| fig-height: 40
+#| lightbox:
+#|   group: azimuth
+#|   description: Azimuth annotations<br />Color represents the clusters<br />L2 Annotations (mid level)
+
+if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
+  Seurat::DimPlot(
+    seurat_obj_RUN_ID_azimuth,
+    reduction = "umap",
+    split.by = "predicted.celltype.l2",
+    ncol = 3, seed = 42
+  )
+}
+```
+
+## L3
+
+```{r}
+#| label: fig-azimuth-3
+#| fig-cap: Azimuth annotation (third level)
+#| column: page
+#| fig-width: 20
+#| fig-height: 50
+#| lightbox:
+#|   group: azimuth
+#|   description: Azimuth annotations<br />Color represents the clusters<br />L3 Annotations (detailed)
+
+if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
+  Seurat::DimPlot(
+    seurat_obj_RUN_ID_azimuth,
+    reduction = "umap",
+    split.by = "predicted.celltype.l3",
+    ncol = 3, seed = 42
+  )
+}
+```
+:::
+
+
+:::
+
+# Session info
+
+## R
+
+```{r}
+#| message: false
+#| warning: false
+#| error: true
+devtools::session_info()
+```
+
+## Python
+
+This report was computed with python `r reticulate::py_version(patch = T)`.
+
+::: {.callout-note collapse="false" appearance="default" icon="true"}
+## umap (note)
+
+-   Seurat UMAP computation are done using the python **umap-learn** (umap) package.
+
+-   The code next is used to show this package and its dependencies version.
+:::
+
+```{python}
+#| message: false
+#| warning: false
+#| error: true
+import umap
+import numpy
+import scipy
+import sklearn
+import numba
+import tqdm
+import pynndescend
+import session_info
+session_info.show()
+```

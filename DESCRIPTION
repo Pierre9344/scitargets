@@ -1,0 +1,38 @@
+Package: scitargets
+Title: Single-cell CITE-seq analysis with targets pipeline
+Version: 1.0.0
+Description: This package provides target factories and utilities for analyzing single-cell CITE-seq data with targets pipeline.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports: 
+    magrittr,
+    fs,
+    Seurat (>= 5.3.1),
+    SeuratObject,
+    targets,
+    dplyr,
+    tidyselect,
+    visNetwork,
+    stats,
+    Azimuth
+Suggests: 
+    knitr,
+    rmarkdown,
+    devtools,
+    here,
+    renv,
+    autometric,
+    crew,
+    qs2,
+    quarto (>= 1.5.1),
+    tarchetypes
+VignetteBuilder: quarto
+Depends: 
+    R (>= 3.5)
+LazyData: true
+Authors@R: 
+    person("Pierre", "Solomon", , "pierre.solomon@laposte.net", role = c("aut", "cre"))
+Author: Pierre Solomon
+Maintainer: Pierre Solomon <pierre.solomon@laposte.net>

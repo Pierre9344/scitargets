@@ -1,0 +1,37 @@
+project:
+  type: website
+  execute-dir: project
+
+engine: knitr
+
+website:
+  title: 'SCITARGET PROJECT'
+  navbar:
+    left:
+      - href: QMD/00_index.qmd
+        text: Home
+      - href: QMD/01_pipeline_state.qmd
+        text: State of the pipeline
+      - text: 'Analysis'
+        menu:
+         - text: 'indicate the run id here'
+           href: QMD/02_run_1.qmd
+
+format:
+  html:
+    theme: default
+    css: style.css
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    embed-resources: true
+
+lightbox:
+  match: auto
+  effect: fade
+  desc-position: right
+  loop: false
+
+editor: source
+
+

@@ -1,0 +1,33 @@
+---
+title: State of the pipeline
+---
+
+
+# Environment
+
+This project use the **scitargets** (`r packageVersion("scitargets")`) R package to analyse single-cell CITE-seq data.
+
+`r version$version.string`
+
+
+# Pipeline
+
+The pipeline is defined in the **_targets.R** file.
+
+The data, including cellranger output are located in the **data** folder.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+scitargets::tar_visnetwork_enhanced()
+```
+
+
+# Session informations
+
+```{r}
+devtools::session_info()
+```
+
+

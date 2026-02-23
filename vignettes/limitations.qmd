@@ -1,0 +1,43 @@
+---
+title: "Limitations"
+format:
+  html:
+   toc: true
+   toc-depth: 3
+   embed-resources: true
+  pdf: default
+vignette: >
+  %\VignetteIndexEntry{limitations}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+```{r}
+#| label: setup
+#| warning: false
+#| message: false
+#| include: false
+library(scitargets)
+```
+
+# Limitations
+
+## Change in scitargets are not detected by targets.
+
+While targets is good to detect change in functions defined in the global environment, it doesn't detect the internal modification of a package like scitargets.
+
+-   what does that mean for a users: if you update scitargets or another package (Seurat, Azimuth) or even a python dependency such as "umap-learn", it is recommanded that you rerun the entire pipeline.
+
+```{r}
+#| eval: false
+#| include: true
+targets::tar_destroy()      # 1. destroy all steps in the pipeline
+targets::tar_delete(steps_concerned_1, steps_concerned_2)       # (optional) delete only the concerned steps
+targets::tar_make()         # 2. relaunch the pipeline
+quarto::quarto_render(".")  # 3. recompile the report
+```
+

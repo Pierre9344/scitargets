@@ -1,0 +1,310 @@
+---
+title: "Get started"
+format:
+  html:
+   toc: true
+   toc-depth: 3
+   embed-resources: true
+  pdf: default
+vignette: >
+  %\VignetteIndexEntry{get-started}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: '#>'
+---
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+library(scitargets)
+```
+
+# Reasons to use scitargets
+
+The research team I am part of, use [CITE-seq](https://en.wikipedia.org/wiki/CITE-Seq) to pool multiple samples before sequencing allowing to use HTO to demultiplex the samples and to identify singlets cells.
+
+My first single-cell project consisted to analyse more than 30 PBMCs samples sequenced using CITE-seq. Because of the large number of samples, they were processed into 10 sequencing runs of 3-4 samples. Before I could integrated theses runs into a single Seurat object, I had to perform the following steps on each run individually:
+
+1.  Remove low quality cells based on the number of detected genes and the percentage of mitochondrial counts.
+
+2.  Demultiplex the HTO to identify singlets.
+
+3.  Filter the seurat to keep only the singlets.
+
+4.  Run dimensionality reduction (PCA, UMAP, and t-SNE).
+
+5.  Identify clusters and their markers genes.
+
+6.  Run [Azymuth](https://github.com/satijalab/azimuth) to procedurally assign cell types (also need manual check).
+
+7.  Generate a report summarizing the results of the previous steps.
+
+At first glance, this may look like a short list of steps. However, the actual code required for each step was fairly complex. Copying and modifying the code for every run was not only time-consuming but also error-prone. For example, it was easy to accidentally update a function for one sequencing run but forget to do it for the others, or to overwrite intermediate results of another run by neglecting to rename a variable.
+
+To make the process more reproducible and less error-prone, I converted my workflow into a [target pipeline](https://books.ropensci.org/targets/) and created:
+
+-   A [targets factory](https://wlandau.github.io/targetopia/contributing.html), that allows generating all the pipeline steps with a single function call.
+
+-   A parameterized report, to analyze the demultiplexing results.
+
+This approach ensures consistency across runs while reducing the chance of manual mistakes. To further increase reproducibility and share my pipeline with my team members, I then created the scitargets package.
+
+## Why use targets
+
+The use of a *targets* pipeline is only necessary for running the quarto report provided by *scitargets*. It is possible to use the core functions of scitargets without a pipeline but organizing your work inside a targets pipeline is highly recommended.
+
+The *targets* package help maintain a clean coding environment. In my experience, many ~~internship students / colleagues~~ individuals end up with dozens of R objects in their environment, multiple *.RData* file in their root directory, or scattered scripts with interdependent code and parse comments to navigate between them.
+
+The *targets* package allow to reduce this behavior by organizing the analysis in a pipeline. It save the results of each pipeline steps inside a \*\_target/\* folder. The user can then load them with the *targets::tar_load()* function as needed.
+
+Additionally, *targets* also track dependencies between steps allowing to keep the results up-to-date while avoid redundant computations as it catche results.
+
+# Creating a scitargets project
+
+## Dependencies
+
+### R
+
+-   targets
+
+-   tarchetypes
+
+-   qs2: allow the use of the qs file format (more efficient format than the default rds format of R to save object on disk.
+
+-   Seurat (\>= 5.3.1)
+
+```{r}
+#| include: true
+#| eval: false
+# At the time I write this, seurat is on the version 5.3.0 on cran.
+# Here, I force the use of Seurat >= 5.3.1 as the 5.3.0 is not compatible with the azimuth package
+devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
+```
+
+-   devtools: used to give information about the package version in the report.
+
+-   stringr: used to manipulate character variable in the report.
+
+-   here: used in the .Rprofile script to create a yaml file indicating the "\_targets" folder to the QMD document
+
+-   yaml: used in the .Rprofile script to create a yaml file indicating the "\_targets" folder to the QMD document
+
+-   reticulate: used in the report to indicate the version of python dependencies.
+
+### Python
+
+-   [umap-learn](https://umap-learn.readthedocs.io/en/latest/): Seurat depend on the umap-learn python package when computing the UMAP.
+
+-   [session_info](https://pypi.org/project/session-info/): the scitargets report use the session_info package to report the version of umap-learn and some of his dependencies.
+
+### Quarto
+
+[quarto](https://quarto.org/): quarto is used to render reports for the different datasets.
+
+## Initializing a scitargets project
+
+1.  Install scitargets if not already done and restart Rstudio
+
+```{r}
+#| include: true
+#| eval: false
+devtools::install_github("https://github.com/Pierre9344/scitargets", build_vignettes = T)
+```
+
+2.  Open your project option and indicate the python interpreter on which you installed the umap-learn and session_info packages. In RStudio: Tools -\> Project Options... -\> Python
+3.  Create a new project in Rstudio: **File ➜ New Project... ➜ New Directory ➜ Project template for scitargets**
+4.  Go to the **data/cellranger_output** and create a new folder. Name it according to your run identifier.
+    -   Choose this id so that he is unique.
+    -   You can create more than one folder here.
+5.  Add the cellranger output files (barcodes.tsv.gz, feature.tsv.gz, matrix.mtx.gz) inside the folder created in the step 3.
+6.  Go to the **./QMD/** folder. It should contains 3 files:
+    -   00_index.qmd
+    -   01_pipeline_state.qmd
+    -   02_run_1.qmd
+7.  If necessary duplicate and rename the "02_run_1.qmd" so that you have one for eachsub-folder of **data/cellranger_output**.
+8.  Open the "02_run_1.qmd" file or whatever you renamed it, and the eventual copies and modify it to fit you run:
+    -   set the "RUN_NAME" parameter (inside the yaml header) to the name of the run folder inside the **data/cellranger_output/** folder.
+    -   replace all occurence of **"RUN_ID"** in the document by **"\<your_run_id\>*"*** *(*same as the the RUN_NAME parameter).
+9.  Open and modify the **\_targets.R** script in the project root.
+
+The **\_targets.R** script is composed of multiple parts:
+
+-   The functions to load packages and eventual R script inside the "./R/" folder that are needed by the pipeline.
+
+-   The setup for parallel computing on a local computer (desactivated by default):
+
+    -   the crew package is used on local computer
+
+    -   the crew.cluster must be used on computational clusters that use slurm or sge
+
+-   The options of the targets pipelines including: the main seed, the save format (default to qs format of the qs2 package), the packages whose functions are used by the pipeline, ...
+
+-   The pipeline steps.
+
+By default, the pipeline look like this:
+
+```{r}
+#| include: true
+#| eval: false
+list(
+  scitargets::tar_demultiplex_hto(
+    run_id = "", # identifier for the run
+    project_id = "",
+    run_path = "", # relative or absolute path to a subfolder of data/cellranger_output with the files of the runs
+    min_gene_detected = 200,
+    max_genes_detected = 4000,
+    mt_percent_cutoff = 5,
+    singlets_dim_to_use = 1:15
+  )
+)
+```
+
+Here, the 'tar_demultiplex_hto' function will create the steps to realize the quality controls and HTO demultiplexing, and singlets extraction and then the 'tar_quarto' function will render the report using the pipeline outputs.
+
+I recommand to leave the **singlets_dim_to_use** argument to its default value for your first run. See the [singlets_dim_to_use](#dim_to_use) section for more details.
+
+**Be aware that the targets names will be based on the run_id!** Please make sure that each call to the tar_demultiplex_hto use an unique run_id.
+
+### If you have a single dataset
+
+If you have a single dataset, you can just modify the parameters to match the ones you previously indicated inside the qmd document. Once it is done
+
+### If you have multiple datasets
+
+If you have multiple datasets to analyze, you must duplicate the call to 'tar_demultiplex_hto':
+
+```{r}
+#| include: true
+#| eval: false
+list(
+  scitargets::tar_demultiplex_hto(
+    run_id = "run_id_1",
+    project_id = "project_id_1",
+    min_gene_detected = 200,
+    max_genes_detected = 4000,
+    mt_percent_cutoff = 5,
+    singlets_dim_to_use = 1:15
+  ),
+  scitargets::tar_demultiplex_hto(
+    run_id = "run_id_2",
+    project_id = "project_id_2",
+    min_gene_detected = 200,
+    max_genes_detected = 4000,
+    mt_percent_cutoff = 5,
+    singlets_dim_to_use = 1:15
+  ),
+  tarchetypes::tar_quarto(name = report, path = ".", quiet = F)
+)
+```
+
+### Parallel computation
+
+If you wish to speed up the computation you can uncomment the code in crew. Don't forget to also uncomment the line indicating the controller inside the targets options.
+
+If you run your code on a computing cluster with a job scheduler such as SGE or SLURM, best practice would be to adapt the "crew code" to use crew.cluster and launch a job per step. However, it is possible that crew.cluster don't work on some cluster due to some policy. In this case, I recommend to check it with your cluster administrator. It is still possible to use crew directly by launching requesting multiple CPU cores before you launch your R session.
+
+# Running the project
+
+1.  Once all the files are ready, you can launch the pipeline with:
+
+```{r}
+#| include: true
+#| eval: false
+targets::tar_make()
+```
+
+2.  Compile the quarto report. You can do it by opening the project inside RStudio and going to the "Build" tab on the upper right of the IDE, or by using quarto from a command line.
+
+## Checking the report
+
+Once the report is rendered, check if the results are correct:
+
+-   Was the minimal/maximal number of genes per cells and mitochondrial cutoff filters adapted?
+-   Did the HTO demultiplexing identified enough singlets cells,
+-   Was the [number of PCA dimensions used to compute the UMAP](#dim_to_use) sufficient?
+
+If necessary you can adjust the parameters accordingly and relaunch the pipeline with another call to "targets::tar_make()".
+
+## singlets_dim_to_use argument {#dim_to_use}
+
+I recommand to leave the **singlets_dim_to_use** argument to its default value for your first run. This argument is used select the number of principal component when computing the UMAP and t-SNE after the singlets extraction. This parameters is important as the singlets UMAP can be used to identify cells clusters and the best way to do this is to check the elbow plot in the report.
+
+A value of 1:15 should be a good starting point. Once the report of your run is rendered, you can check the PCA elbow plot to determine the component to use.
+
+## singlets_clusters_to_use
+
+You can use the **"singlets_clusters_to_use"** argument to:
+
+1.  identify markers that are differentially expressed between different clusters
+
+2.  realize an automatic cell type annotation with the azimuth package
+
+The argument took a value of type character that correspond to a valid column in the singlets object metadata.
+
+As clusters are computed for resolutions going from 0.2 to 1, you can identify the best clustering in the report and indicate his name (e.g. clusters_0.5) to the pipeline before relaunching it. Please note that it is still possible to reuse the scitargets function to customize the pipeline (see the targets-factories vignette).
+
+# And after the demultiplexing
+
+Once it is done you are free to expand the project as you need. I recommand to do the heavy computation inside the targets pipeline. You can access the Seurat object of the singlets by referring to the "seurat_obj\_<run_id>\_singlets".
+
+```{r}
+#| include: true
+#| eval: false
+# run_id = run_1
+list(
+  scitargets::tar_demultiplex_hto(
+    run_id = "",
+    project_id = "",
+    min_gene_detected = 200,
+    max_genes_detected = 4000,
+    mt_percent_cutoff = 5,
+    singlets_dim_to_use = 1:15
+  ),
+  tar_target(
+    name = markers_run_1,
+    command = Seurat::FindAllMarkers(
+      seurat_obj_run_1_singlets, # name of the steps containing the singlets for run_1 (generated by tar_demultiplex_htoà
+      assay = "SCT",
+      group.by = "clusters_0.5",
+      test.use = "wilcox",
+      random.seed = tar_seed_get(), # use a seed generated by targets using the main seed and the step name
+      only.pos = FALSE,
+      min.pct = 0.25,
+      logfc.threshold = 0.25
+      ),
+    description = "Markers for the clusters of run_1"
+  ),
+  tar_target(
+    markers_run_1_filtered,
+    # Not really interesting to define a target just to filter a data.frame as this could be done in the report
+    # This is just to show how we can call a target created by ourself like one created by scitargets.
+    command = dplyr::filter(markers_run_1, padj < 0.05, logfc > 0),
+    description = "Significant markers for the clusters of run_1"
+  ),
+  # The next target use bracket to run multiple commands
+  tar_target(
+    name = azimuth_run_1,
+    command = {
+      cell <- seurat_obj_run_1_singlets
+      Idents(cell) <- cluster_to_use
+      DefaultAssay(cell) <- "SCT"
+      cell %<>% Azimuth::RunAzimuth(reference = "pbmcref", assay = "SCT")
+      return(cell)
+    }
+  ),
+  ###########################################################################
+  ##  RENDER PROJECT WEBSITE  (leave it as the last step of the pipeline)  ##
+  ###########################################################################
+  tarchetypes::tar_quarto(name = report, path = ".", quiet = F)
+)
+```
+
+# Limitations
+
+## Analysis
+
+Currently, this package only help with the demultiplexing of the HTO. I intent to add more target factories to determine celltypes with Azimuth and to merge different runs into a single Seurat object.
