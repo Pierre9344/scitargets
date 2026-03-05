@@ -35,6 +35,7 @@ tar_option_set(
   memory = "transient", # unload the targets after the steps are completed
   # the next argument indicate the packages that need to be loaded by the pipeline.This override the packages loaded in the main environment
   packages = c(
+    "Seurat", "SeuratObject",
     "scitargets"
   )
 )
