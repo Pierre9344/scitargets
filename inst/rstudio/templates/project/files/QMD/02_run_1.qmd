@@ -3,7 +3,7 @@ title: |
   `r params$run`
 abstract: |
   This document describes the QC realized on the single-cell samples from the **`r params$run`** sequencing run.
-  This run is part of the **`r targets::tar_read_raw(paste0("parameters_", params$run))$project`** project.
+  This run is part of the **`r targets::tar_read(parameters_RUN_ID)$project`** project.
 params:
   run: RUN_ID
 ---
