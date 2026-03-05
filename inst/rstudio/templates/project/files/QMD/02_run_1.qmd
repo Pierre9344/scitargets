@@ -371,10 +371,10 @@ cat("\n\n:::\n\n")
 if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   tar_load(seurat_obj_RUN_ID_feat_removed_singlets)
   Seurat::Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- run_clusters_for_markers
-  Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+  p1 <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "pca"
   )
-  Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
+  p2 <- Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
 }
 ```
 
