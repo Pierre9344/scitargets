@@ -4,7 +4,7 @@ The goal of scitargets is to help you analyse single-cell CITE-seq data by provi
 
 ## Installation
 
-You can install the development version of scitargets like so:
+You can install scitargets using devtools. Keep the build_vignettes argument to get the package documentation:
 
 ```{r}
 install.package("devtools")
@@ -20,7 +20,7 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
 2.  Copy your cellranger output inside **"data/cellranger_output/"** folder. Create a subfolder for each run.
 
-3.  Open the \*\*"\_targets.R"\*\* script and modify it to run the pipeline on each run.
+3.  Open the **"\_targets.R"** script and modify it to run the pipeline on each run.
 
     -   Duplicate the **"tar_demultiplex_hto"** function to have one call per run and modify the argument (the run_id argument must correspond the subfolder in "data/cellranger_output/".
 
@@ -34,7 +34,7 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
     -   replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_ID parameter in the yaml header).
 
-7.  Modify the \*\*"\_quarto.yml"\*\* file to indicate each reports (qmd document) inside the website
+7.  Modify the **"\_quarto.yml"** file to indicate each reports (qmd document) inside the website
 
 8.  Run the pipeline using **"targets::tar_make()"**
 
