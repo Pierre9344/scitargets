@@ -301,7 +301,7 @@ Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
 #| message: false
 #| warning: false
 #| label: fig-pca-singlet
-#| fig-cap: "UMAP of the singlets"
+#| fig-cap: "PCA of the singlets"
 #| layout: "[[1,1], [1]]"
 #| fig-subcap:
 #|   - HTO classification
@@ -317,6 +317,7 @@ Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
 tar_load(seurat_obj_RUN_ID_singlets)
 Seurat::Idents(seurat_obj_RUN_ID_singlets) <- run_clusters_for_markers
 Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "pca")
+Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = run_clusters_for_markers, reduction = "pca")
 Seurat::ElbowPlot(seurat_obj_RUN_ID_singlets, ndims = 30)
 ```
 
@@ -355,7 +356,7 @@ cat("\n\n:::\n\n")
 #| message: false
 #| warning: false
 #| label: fig-pca-singlet-2
-#| fig-cap: "UMAP of the singlets (after features removal)"
+#| fig-cap: "PCA of the singlets (after features removal)"
 #| layout: "[[1,1], [1]]"
 #| fig-subcap:
 #|   - HTO classification
@@ -374,8 +375,14 @@ if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   p1 <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "pca"
   )
-  p2 <- Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
+  p2 <- Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
+    group.by = run_clusters_for_markers, reduction = "pca"
+  )
+  p3 <- Seurat::ElbowPlot(seurat_obj_RUN_ID_feat_removed_singlets, ndims = 30)
 }
+plot(p1)
+plot(p2)
+plot(p3)
 ```
 
 ### UMAP
