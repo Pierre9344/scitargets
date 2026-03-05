@@ -18,6 +18,12 @@ quarto::write_yaml_metadata_block(
   use_azimuth = tar_exist_objects("seurat_obj_RUN_ID_azimuth"),
   found_markers = tar_exist_objects("markers_RUN_ID")
 )
+
+run_clusters_for_markers = "clusters_0.5" # used as default
+if ("singlets_clusters_for_markers" %in% names(tar_read(parameters_RUN_ID))) {
+  run_clusters_for_markers = tar_read(parameters_RUN_ID)[["singlets_clusters_for_markers"]]
+}
+
 ```
 
 # Libraries
@@ -309,7 +315,7 @@ Seurat::DimPlot(seurat_obj_RUN_ID_non_neg,
 #|     - Elbow plot of the singlets PCA
 
 tar_load(seurat_obj_RUN_ID_singlets)
-Seurat::Idents(seurat_obj_RUN_ID_singlets) <- "clusters_0.5" # used as default
+Seurat::Idents(seurat_obj_RUN_ID_singlets) <- run_clusters_for_markers
 Seurat::DimPlot(seurat_obj_RUN_ID_singlets, group.by = "HTO_classification", reduction = "pca")
 Seurat::ElbowPlot(seurat_obj_RUN_ID_singlets, ndims = 30)
 ```
@@ -364,7 +370,7 @@ cat("\n\n:::\n\n")
 
 if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
   tar_load(seurat_obj_RUN_ID_feat_removed_singlets)
-  Seurat::Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- "clusters_0.5" # used as default
+  Seurat::Idents(seurat_obj_RUN_ID_feat_removed_singlets) <- run_clusters_for_markers
   Seurat::DimPlot(seurat_obj_RUN_ID_feat_removed_singlets,
     group.by = "HTO_classification", reduction = "pca"
   )
@@ -451,9 +457,9 @@ FeaturePlotWithCluster <- function(obj = NULL,
   }
   p <- Seurat::FeaturePlot(obj, features = features, combine = FALSE)
   for (i in seq_along(p)) {
-    p[[i]]$data$clusters <- obj@meta.data[["clusters_0.5"]]
+    p[[i]]$data$clusters <- obj@meta.data[[clusters_to_use]]
     p2 <- Seurat::LabelClusters(plot = p[[i]], id = "clusters", size = size_to_use)
-    plot(p2)
+    return(p2)
   }
 }
 
