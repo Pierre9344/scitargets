@@ -238,17 +238,19 @@ tar_demultiplex_hto <- function(
       if (run_azimuth) {
         hto_demux_steps <- c(
           hto_demux_steps,
-          name = seurat_obj_target_name(run_id, "azimuth"),
-          command = {
-            base::substitute(
-              scitargets::azimuth_annot_pbmc(seurat, cluster_to_use),
-              list(
-                seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
-                cluster_to_use = singlets_clusters_to_use
+          targets::tar_target_raw(
+            name = seurat_obj_target_name(run_id, "azimuth"),
+            command = {
+              base::substitute(
+                scitargets::azimuth_annot_pbmc(seurat, cluster_to_use),
+                list(
+                  seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
+                  cluster_to_use = singlets_clusters_to_use
+                )
               )
-            )
-          },
-          description = base::paste0(run_id, ": singlets cell with azimuth celltype annotation.")
+            },
+            description = base::paste0(run_id, ": singlets cell with azimuth celltype annotation.")
+          )
         )
       }
     } else {
@@ -277,6 +279,7 @@ tar_demultiplex_hto <- function(
       )
       if (run_azimuth) {
         hto_demux_steps <- c(
+          hto_demux_steps,
           targets::tar_target_raw(
             name = seurat_obj_target_name(run_id, "azimuth"),
             command = {
@@ -294,7 +297,5 @@ tar_demultiplex_hto <- function(
       }
     }
   }
-
-
   return(hto_demux_steps)
 }
