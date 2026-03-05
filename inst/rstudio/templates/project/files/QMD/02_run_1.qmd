@@ -471,7 +471,7 @@ if (tar_exist_objects("markers_RUN_ID")) {
     top10 %>% dplyr::filter(gene==G) %>% dplyr::pull(cluster) %>%
       paste(collapse = ', '), ".\n\n", sep = ""
     )
-    p <- Seurat::FeaturePlotWithCluster(obj, features = G)
+    p <- FeaturePlotWithCluster(obj, features = G)
     plot(p)
   }
   cat("\n\n:::\n\n")

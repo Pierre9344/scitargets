@@ -1,6 +1,6 @@
 Package: scitargets
 Title: Single-cell CITE-seq analysis with targets pipeline
-Version: 1.0.0
+Version: 1.0.1
 Description: This package provides target factories and utilities for analyzing single-cell CITE-seq data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
