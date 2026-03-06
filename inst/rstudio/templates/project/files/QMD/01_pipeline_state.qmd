@@ -12,7 +12,7 @@ This project use the **scitargets** (`r packageVersion("scitargets")`) R package
 
 # Pipeline
 
-The pipeline is defined in the **_targets.R** file.
+The pipeline is defined in the **\_targets.R** file.
 
 The data, including cellranger output are located in the **data** folder.
 
