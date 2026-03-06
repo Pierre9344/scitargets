@@ -5,7 +5,8 @@
 #' @param obj obj a Seurat object.
 #' @param dims_to_use Number of principal components to use when computing the UMAP and t-SNE. Default to 1:15. If a NULL or non-integer value is set, the number will be determined by the stdev of the PC.
 #' @param feat_to_remove Names of features (genes) to remove. Can be used to remove genes located on gonosomes.
-#' @param default_seed default_seed Default seed used for reduction methods that need it. Not used if the function run inside a targets pipeline as in this case the steps seed (defined based on its name and the pipeline global seed) is used.
+#' @param default_seed Default seed used for reduction methods that need it. Not used if the function run inside a targets pipeline as in this case the steps seed (defined based on its name and the pipeline global seed) is used.
+#' @param clusters_resolutions Numeric vectors of values superior to 0. Represent the resolutions to try for computing cells clusters.
 #'
 #' @returns A Seurat object
 #' @export
@@ -17,11 +18,16 @@
 extract_singlets <- function(obj = NULL,
                              dims_to_use = 1:15,
                              feat_to_remove = NULL,
-                             default_seed = 1234) {
+                             clusters_resolutions = base::seq(from = 0.2, to = 1.5, by = 0.1),
+                             default_seed = 1234
+                             ) {
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   } else if (!is.integer(dims_to_use)) {
     message("dims_to_use is not set, it will be replaced using the PCA elbow plot")
+  }
+  if (is.null(clusters_resolutions) | !is.numeric(clusters_resolutions) | !all(clusters_resolutions > 0)) {
+    stop("clusters_resolutions must be a numeric factor with values superior to 0.")
   }
   local_seed <- base::ifelse(targets::tar_active(), targets::tar_seed_get(), default_seed)
   # Subset singlet, set default assay and idents
@@ -62,7 +68,7 @@ extract_singlets <- function(obj = NULL,
       dims = dims_to_use
     )
   # identify clusters with different resolutions
-  for (k in base::seq(from = 0.2, to = 1, by = 0.1)) {
+  for (k in clusters_resolutions) {
     obj %<>%
       Seurat::FindClusters(
         resolution = k,

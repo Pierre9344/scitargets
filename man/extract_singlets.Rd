@@ -8,6 +8,7 @@ extract_singlets(
   obj = NULL,
   dims_to_use = 1:15,
   feat_to_remove = NULL,
+  clusters_resolutions = base::seq(from = 0.2, to = 1.5, by = 0.1),
   default_seed = 1234
 )
 }
@@ -18,7 +19,9 @@ extract_singlets(
 
 \item{feat_to_remove}{Names of features (genes) to remove. Can be used to remove genes located on gonosomes.}
 
-\item{default_seed}{default_seed Default seed used for reduction methods that need it. Not used if the function run inside a targets pipeline as in this case the steps seed (defined based on its name and the pipeline global seed) is used.}
+\item{clusters_resolutions}{Numeric vectors of values superior to 0. Represent the resolutions to try for computing cells clusters.}
+
+\item{default_seed}{Default seed used for reduction methods that need it. Not used if the function run inside a targets pipeline as in this case the steps seed (defined based on its name and the pipeline global seed) is used.}
 }
 \value{
 A Seurat object

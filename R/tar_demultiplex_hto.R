@@ -29,6 +29,7 @@ utils::globalVariables(c(
 #' @param singlets_feat_to_remove If not NULL, a character variable indicating a targets step that contains the name of features (genes) to remove from the singlets.
 #' @param singlets_clusters_to_use Name of cell cluster to use when identifying markers or running azimuth celltype annotation
 #' @param run_azimuth If true, run azimuth using the (human) pbmc-ref of SeuratData
+#' @param clusters_res_to_try umeric vectors of values superior to 0. Represent the resolutions to try for computing cells clusters. Default to values between 0.2 to 1.5 with a step of 0.1.
 #'
 #' @returns A list describing pipeline steps that can be interpreted by targets
 #' @export
@@ -44,6 +45,7 @@ tar_demultiplex_hto <- function(
   min_genes_detected = 200,
   max_genes_detected = 4000,
   mt_percent_cutoff = 5,
+  clusters_res_to_try = base::seq(from = 0.2, to = 1.5, by = 0.1),
   singlets_feat_to_remove = NULL,
   singlets_dim_to_use = 1:15,
   singlets_clusters_to_use = NULL,
@@ -172,10 +174,15 @@ tar_demultiplex_hto <- function(
     targets::tar_target_raw(
       name = seurat_obj_target_name(run_id, "singlets"),
       command = base::substitute(
-        scitargets::extract_singlets(obj = seurat, dims_to_use = singlets_dim),
+        scitargets::extract_singlets(
+          obj = seurat,
+          dims_to_use = singlets_dim,
+          clusters_resolutions = resolutions
+        ),
         list(
           seurat = base::as.symbol(seurat_obj_target_name(run_id, "non_neg")),
-          singlets_dim = singlets_dim_to_use
+          singlets_dim = singlets_dim_to_use,
+          resolutions = clusters_res_to_try
         )
       ),
       description = base::paste0(run_id, ": singlets cells (all features of the original object).")
@@ -192,12 +199,14 @@ tar_demultiplex_hto <- function(
           scitargets::extract_singlets(
             obj = seurat,
             dims_to_use = singlets_dim,
-            feat_to_remove = feats
+            feat_to_remove = feats,
+            clusters_resolutions = resolutions
           ),
           list(
             seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
             singlets_dim = singlets_dim_to_use,
-            feats = base::as.symbol(singlets_feat_to_remove)
+            feats = base::as.symbol(singlets_feat_to_remove),
+            resolutions = clusters_res_to_try
           )
         ),
         description = base::paste0(run_id, ": singlets cell without the non desired features.")

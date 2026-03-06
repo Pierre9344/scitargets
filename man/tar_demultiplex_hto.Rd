@@ -11,6 +11,7 @@ tar_demultiplex_hto(
   min_genes_detected = 200,
   max_genes_detected = 4000,
   mt_percent_cutoff = 5,
+  clusters_res_to_try = base::seq(from = 0.2, to = 1.5, by = 0.1),
   singlets_feat_to_remove = NULL,
   singlets_dim_to_use = 1:15,
   singlets_clusters_to_use = NULL,
@@ -29,6 +30,8 @@ tar_demultiplex_hto(
 \item{max_genes_detected}{Maximal number of genes detected in a cell. Default to 4000.}
 
 \item{mt_percent_cutoff}{Cutoff for the percentage of mitochondrial counts a cell can have.}
+
+\item{clusters_res_to_try}{umeric vectors of values superior to 0. Represent the resolutions to try for computing cells clusters. Default to values between 0.2 to 1.5 with a step of 0.1.}
 
 \item{singlets_feat_to_remove}{If not NULL, a character variable indicating a targets step that contains the name of features (genes) to remove from the singlets.}
 
