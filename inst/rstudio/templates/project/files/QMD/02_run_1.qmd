@@ -497,8 +497,6 @@ if (tar_exist_objects("markers_RUN_ID")) {
 
 # Azimuth automatic celltypes annotation
 
-**Azimuth is not implemented next. Will be in next version**
-
 ```{r}
 if (tar_exist_objects("seurat_obj_RUN_ID_azimuth")) {
   tar_load(seurat_obj_RUN_ID_azimuth)
