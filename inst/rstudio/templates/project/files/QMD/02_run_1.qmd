@@ -139,7 +139,7 @@ Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "umap")
 #| message: false
 #| warning: false
 #| label: fig-tsne-1
-#| fig-cap: UMAP of all cells
+#| fig-cap: t-SNE of all cells
 #| lightbox:
 #|   group: umap-tsne-1
 #|   description: UMAP of all cells that pass the QC<br />Color correspond to the cells clusters (identified using all cells that pass the first QC)
