@@ -16,7 +16,8 @@ Imports:
     tidyselect,
     visNetwork,
     stats,
-    Azimuth
+    Azimuth,
+    stringr
 Suggests: 
     knitr,
     rmarkdown,

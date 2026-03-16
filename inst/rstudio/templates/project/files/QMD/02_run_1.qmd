@@ -23,7 +23,13 @@ run_clusters_for_markers = "clusters_0.5" # used as default
 if ("singlets_clusters_for_markers" %in% names(tar_read(parameters_RUN_ID))) {
   run_clusters_for_markers = tar_read(parameters_RUN_ID)[["singlets_clusters_for_markers"]]
 }
+```
 
+```{r}
+scitargets::tar_visnetwork_enhanced(
+  keep_report = T,
+  dataset = params$run
+  )
 ```
 
 # Libraries

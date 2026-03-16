@@ -20,7 +20,7 @@ The data, including cellranger output are located in the **data** folder.
 #| echo: false
 #| message: false
 #| warning: false
-scitargets::tar_visnetwork_enhanced()
+scitargets::tar_visnetwork_enhanced(keep_report = F)
 ```
 
 

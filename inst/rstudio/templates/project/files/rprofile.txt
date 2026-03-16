@@ -29,5 +29,6 @@ if (dir.exists(paste0(here::here(), "/QMD/"))) {
                 overwrite = T)
       file.remove(paste0(here::here(), "/_targets.yaml"))
     }
+	rm(local_yaml)
   }
 }
