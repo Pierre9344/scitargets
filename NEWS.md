@@ -2,6 +2,8 @@
 
 - Modified the QMD templates. Now the quality control violins plot display lines representing the min/max features and mitochondrial cutoff set on tar_demultiplex_hto.
 
+- Correction of tar_demultiplex_hto that previously used run_id instead of run_path for a path check.
+
 # scitargets 1.1.0
 
 - Modified the extract_singlets function to add a parameter to indicate a numeric vector representing the clustering resolutions the pipeline compute (default to 0.2 to 1.5 with a step of 0.1).

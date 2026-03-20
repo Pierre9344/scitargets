@@ -56,7 +56,7 @@ tar_demultiplex_hto <- function(
     stop("Run path must be a valid path pointing to a file inside the 'data/cellranger_output/' folder! 1")
   } else if (fs::is_absolute_path(run_path) &&
     !startsWith(
-      normalizePath(run_id, winslash = "/", mustWork = F),
+      normalizePath(run_path, winslash = "/", mustWork = F),
       normalizePath("./data/cellranger_output/", winslash = "/", mustWork = F)
     )
   ) {
