@@ -58,7 +58,7 @@ demultiplex_cell <- function(
         cell@meta.data[negsing_cells, ] <- rd_neg@meta.data[negsing_cells, ]
       }
       if (class_tab["Doublet"] / class_tab["Singlet"] > 0.05) {
-        message("Doublets represent more than 5% of the single. Preparing a second demultiplexing on the negatives and doublets.")
+        message("Doublets represent more than 5% of the singlet. Preparing a second demultiplexing on the negatives and doublets.")
         rd_dup <- base::subset(cell, idents = "Doublet") %>%
           Seurat::NormalizeData(
             assay = "HTO",

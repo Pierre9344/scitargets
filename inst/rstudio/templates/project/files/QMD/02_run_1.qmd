@@ -58,13 +58,44 @@ The loaded Seurat object loaded from CellRanger contains **`r as.integer(dim(seu
 #| fig-cap: "Violin plot of the features"
 #| fig-width: 15
 
-Seurat::VlnPlot(seurat_obj_RUN_ID_raw,
-  features = c(
+feat_to_plot <- c(
     "nFeature_RNA", "nCount_RNA", "percent.mt",
     "nFeature_HTO", "nCount_HTO"
-  ),
-  ncol = 5, alpha = 0.1
+  )
+p <- Seurat::VlnPlot(seurat_obj_RUN_ID_raw,
+  features = feat_to_plot,
+  ncol = 5, alpha = 0.1, combine = FALSE
 )
+names(p) <- feat_to_plot
+p[["nFeature_RNA"]] <- p[["nFeature_RNA"]] +
+  ggplot2::geom_hline(
+    yintercept = c(
+      tar_read(parameters_RUN_ID)$min_genes_detected,
+      ),
+    colour = "red", linetype = "dashed", linewidth = 0.5
+  ) +
+  ggplot2::geom_hline(
+    yintercept = c(
+      tar_read(parameters_RUN_ID)$max_genes_detected
+      ),
+    colour = "red", linetype = "dashed", linewidth = 0.5
+  )
+p[["percent.mt"]] <- p[["percent.mt"]] +
+  ggplot2::geom_hline(
+    yintercept = tar_read(parameters_RUN_ID)$mt_cutoff,
+    colour = "red",
+    linetype = "dashed",
+    linewidth = 0.5
+  )
+p <- lapply(p, function(x) {
+  x +
+    ggplot2::theme(legend.position = "none",
+          axis.text.x = ggplot2::element_blank()
+          ) +
+    ggplot2::xlab("")
+  })
+patchwork::wrap_plots(p, ncol = 5)
+rm(p, feat_to_plot)
 ```
 
 For the following parts of the analysis we will only consider cells with:
