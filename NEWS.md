@@ -1,12 +1,10 @@
-# scitargets 1.3.0
-
-- Added a new `plot_resolution_tree` function that create a direcred tree graph representing how clusters split across multiple clustering resolutions.
-
 # scitargets 1.2.0
 
 - Modified the QMD templates. Now the quality control violins plot display lines representing the min/max features and mitochondrial cutoff set on tar_demultiplex_hto.
 
 - Correction of tar_demultiplex_hto that previously used run_id instead of run_path for a path check.
+
+- Added a new `plot_resolution_tree` function that create a direcred tree graph representing how clusters split across multiple clustering resolutions.
 
 # scitargets 1.1.0
 
