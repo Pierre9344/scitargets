@@ -17,7 +17,14 @@ Imports:
     visNetwork,
     stats,
     Azimuth,
-    stringr
+    stringr,
+    ggraph,
+    ggplot2,
+    RColorBrewer,
+    igraph,
+    tibble,
+    scales,
+    purrr
 Suggests: 
     knitr,
     rmarkdown,
