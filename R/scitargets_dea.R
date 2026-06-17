@@ -916,6 +916,15 @@ run_deseq2 <- function(counts, col_data, group1, group2,
   s2 <- .dea_safe_level(group2)
   col_data$group <- factor(.dea_safe_level(col_data$group), levels = c(s2, s1))
 
+  if (!"sample" %in% colnames(col_data)) {
+    stop("col_data must contain a 'sample' column matching colnames(counts).", call. = FALSE)
+  }
+  if (!identical(as.character(col_data$sample), colnames(counts))) {
+    stop("col_data$sample must be in the same order as colnames(counts).", call. = FALSE)
+  }
+
+  rownames(col_data) <- col_data$sample
+
   dds <- DESeq2::DESeqDataSetFromMatrix(
     countData = round(as.matrix(counts)),
     colData = col_data,

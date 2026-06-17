@@ -1399,21 +1399,20 @@
       call. = FALSE
     )
   }
-  key <- as.character(md[[covariate_key]])
+  key <- as.character(md[[pseudobulk_unit]])
+
   for (v in vars) {
     val <- md[[v]]
-    n_distinct <- tapply(
-      val, key,
-      function(z) length(unique(z[!is.na(z)]))
-    )
+    n_distinct <- tapply(val, key, function(z) length(unique(z[!is.na(z)])))
     if (any(n_distinct > 1L, na.rm = TRUE)) {
-      warning(
-        "Covariate '", v, "' is not constant within '", covariate_key,
-        "'; using the first value per ", covariate_key, ".",
+      stop(
+        "Covariate '", v, "' is not constant within pseudobulk_unit '",
+        pseudobulk_unit, "'.",
         call. = FALSE
       )
     }
   }
+
   keep <- !is.na(key) & !duplicated(key)
   lut <- md[keep, , drop = FALSE]
 
