@@ -55,7 +55,18 @@ run_dea(
 
 \item{level}{One of "both" (default), "single_cell", "pseudobulk".}
 
-\item{run_go, run_gsea}{Whether to run the enrichment analyses (default TRUE).}
+\item{run_go, run_gsea}{Whether to run the enrichment analyses (default TRUE).
+GSEA needs a valid signed gene ranking, so it is computed only where that
+holds (a warning is emitted, and the level's GSEA tab is omitted from the
+report, otherwise):
+\itemize{
+\item \strong{single cell}: only when the \code{Seurat::FindMarkers} gene universe is
+unfiltered, i.e. \code{sc_logfc_threshold = 0}, \code{sc_min_pct = 0} and
+\code{sc_only_pos = FALSE}; genes are ranked by \code{sign(log2FC) * -log10(p_val)}.
+\item \strong{pseudobulk}: only when \code{pb_test = "Wald"}; genes are ranked by the signed
+DESeq2 Wald statistic (the \code{stat} column). It is skipped for \code{pb_test = "LRT"}
+(the LRT statistic is unsigned).
+}}
 
 \item{go_params, gsea_params}{Named lists of GO / GSEA parameters. Pass
 \code{gsea_params$pathways} (from \code{\link[=get_msigdbr_pathways]{get_msigdbr_pathways()}}) to skip re-querying.}
@@ -146,7 +157,9 @@ species; stored on the object.}
 
 \item{padj_cutoff_single_cell, padj_cutoff_pseudobulk}{Per-level adjusted-p
 cutoffs (default 0.05 each). Each drives, for its level, the volcano plot's
-horizontal cutoff line and the GO foreground-gene selection.}
+horizontal cutoff line and the GO foreground-gene selection. The pseudobulk
+cutoff is additionally passed to \code{DESeq2::results(alpha = )}, so DESeq2's
+independent filtering is optimised for that FDR threshold.}
 }
 \value{
 A \link{scitargets_dea} object.

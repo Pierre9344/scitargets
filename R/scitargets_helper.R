@@ -1468,10 +1468,29 @@
                            low_count_filter = c(10L, 3L),
                            covariate_key = pseudobulk_unit,
                            shrinkage = TRUE,
+                           alpha = 0.05,
                            drop_units = character()) {
   md <- seurat_obj@meta.data
   if (!pseudobulk_unit %in% colnames(md)) {
     stop("pseudobulk_unit column '", pseudobulk_unit, "' not found in metadata.", call. = FALSE)
+  }
+
+  # Pseudobulk assumes each replicate unit (e.g. patient) belongs to exactly one
+  # comparison group. Enforce it before aggregating (otherwise a unit's cells would
+  # be split across groups and the DESeq2 design would be ill-defined).
+  unit_group <- unique(md[, c(pseudobulk_unit, ".dea_group"), drop = FALSE])
+  unit_group <- unit_group[!is.na(unit_group$.dea_group), , drop = FALSE]
+  bad_units <- names(which(tapply(
+    unit_group$.dea_group,
+    unit_group[[pseudobulk_unit]],
+    function(z) length(unique(z)) > 1L
+  )))
+  if (length(bad_units) > 0L) {
+    stop(
+      "Some pseudobulk units occur in more than one comparison group: ",
+      paste(bad_units, collapse = ", "),
+      call. = FALSE
+    )
   }
 
   # Aggregate (sum) raw counts per (replicate-unit x comparison group).
@@ -1566,7 +1585,8 @@
   run_deseq2(counts, col_data,
     group1 = group1, group2 = ref,
     test = test, design = design, reduced = reduced,
-    low_count_filter = low_count_filter, shrinkage = shrinkage
+    low_count_filter = low_count_filter, shrinkage = shrinkage,
+    alpha = alpha
   )
 }
 
@@ -1741,19 +1761,47 @@
   params
 }
 
-# Ranking metric for GSEA: sign(log2FC) * -log10(raw p-value), sorted decreasing.
-# Positive ranks => up in group1; negative => up in group2 / rest.
+# Ranking metric for GSEA, sorted decreasing. Positive ranks => up in group1;
+# negative => up in group2 / rest.
+#   - pseudobulk Wald: the signed DESeq2 Wald statistic (the `stat` column), used
+#     automatically when present. run_dea only computes pseudobulk GSEA for the Wald
+#     test, so `stat` here is the signed Wald statistic, never the unsigned LRT one.
+#   - otherwise (single cell): sign(log2FC) * -log10(raw p-value).
+# Duplicated gene symbols keep the entry with the strongest absolute statistic
+# (not the arbitrary first occurrence).
 .gsea_ranks <- function(markers) {
   m <- as.data.frame(markers)
   logfc_col <- .logfc_column(m)
-  keep <- !is.na(m$p_val) & !is.na(m[[logfc_col]]) & !is.na(m$Gene) & nzchar(m$Gene)
+
+  if (!"p_val" %in% colnames(m)) {
+    stop("GSEA requires a raw p-value column named 'p_val'.", call. = FALSE)
+  }
+
+  keep <- !is.na(m$p_val) &
+    !is.na(m[[logfc_col]]) &
+    !is.na(m$Gene) &
+    nzchar(m$Gene)
+
   m <- m[keep, , drop = FALSE]
   if (nrow(m) == 0L) {
     return(numeric())
   }
-  stat <- sign(m[[logfc_col]]) * -log10(pmax(m$p_val, .Machine$double.xmin))
+
+  if ("stat" %in% colnames(m) && any(!is.na(m$stat))) {
+    stat <- m$stat
+  } else {
+    stat <- sign(m[[logfc_col]]) * -log10(pmax(m$p_val, .Machine$double.xmin))
+  }
+
   names(stat) <- m$Gene
-  stat <- stat[!duplicated(names(stat))]
+  stat <- stat[is.finite(stat) & !is.na(names(stat)) & nzchar(names(stat))]
+
+  if (anyDuplicated(names(stat))) {
+    o <- order(names(stat), -abs(stat))
+    stat <- stat[o]
+    stat <- stat[!duplicated(names(stat))]
+  }
+
   sort(stat, decreasing = TRUE)
 }
 
@@ -2249,10 +2297,11 @@
   } # end if(go_total > 0L): omit the entire "Gene Ontology" tab when no GO terms
 
   # GSEA: one tab per collection; barplot height scales with the number shown.
-  lines <- c(lines, paste(h_tab, "GSEA"), "")
-  if (length(collections) == 0L) {
-    lines <- c(lines, "_No GSEA results for this level._", "")
-  } else {
+  # Omit the whole "GSEA" tab when GSEA was not computed for this level (no
+  # collections) -- e.g. single cell with a filtered gene universe, or pseudobulk
+  # with pb_test = "LRT" (mirrors how the GO tab is omitted when there are no terms).
+  if (length(collections) > 0L) {
+    lines <- c(lines, paste(h_tab, "GSEA"), "")
     lines <- c(lines, "::: {.panel-tabset}", "")
     for (col in collections) {
       tag <- .dea_sanitize_id(fig_id, level, col)

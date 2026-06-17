@@ -830,6 +830,9 @@ dea_comparisons <- function(meta,
 #   low_count_filter : length-2 integer c(count, n_samples); keep genes whose count
 #              is >= count in at least n_samples pseudobulk samples (default
 #              c(10, 3); supersedes the old "any count > 0" filter).
+#   alpha    : the downstream adjusted-p (FDR) cutoff, passed to DESeq2::results()
+#              so its independent filtering is optimised for that threshold (DESeq2
+#              default 0.1; run_dea passes padj_cutoff_pseudobulk).
 # The group labels are sanitized for the DESeq2 design only; the returned table
 # has no group names (just per-gene stats), so the original labels are unaffected.
 # The number of genes before/after the low-count filter is recorded on the result
@@ -839,7 +842,8 @@ run_deseq2 <- function(counts, col_data, group1, group2,
                        design = "~ group",
                        reduced = "~ 1",
                        low_count_filter = c(10L, 3L),
-                       shrinkage = TRUE) {
+                       shrinkage = TRUE,
+                       alpha = 0.1) {
   test <- match.arg(test)
   design_formula <- stats::as.formula(design)
 
@@ -902,6 +906,10 @@ run_deseq2 <- function(counts, col_data, group1, group2,
       call. = FALSE
     )
   }
+  if (!is.numeric(alpha) || length(alpha) != 1L || is.na(alpha) ||
+    alpha <= 0 || alpha > 1) {
+    stop("alpha must be a single number in (0, 1].", call. = FALSE)
+  }
 
   col_data <- as.data.frame(col_data)
   s1 <- .dea_safe_level(group1)
@@ -928,7 +936,9 @@ run_deseq2 <- function(counts, col_data, group1, group2,
   } else {
     dds <- DESeq2::DESeq(dds, test = "Wald", quiet = TRUE)
   }
-  res <- DESeq2::results(dds, contrast = c("group", s1, s2))
+  # `alpha` must match the downstream FDR cutoff so DESeq2's independent filtering
+  # is optimised for it. See https://www.biostars.org/p/9551104/
+  res <- DESeq2::results(dds, contrast = c("group", s1, s2), alpha = alpha)
   out <- .standardize_deseq2(res)
 
   # Per-group MEAN DESeq2-normalized count columns (named with the ORIGINAL group
@@ -981,6 +991,15 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #' @param group1,group2 The two groups; `group2 = "rest"` means one-vs-rest.
 #' @param level One of "both" (default), "single_cell", "pseudobulk".
 #' @param run_go,run_gsea Whether to run the enrichment analyses (default TRUE).
+#'   GSEA needs a valid signed gene ranking, so it is computed only where that
+#'   holds (a warning is emitted, and the level's GSEA tab is omitted from the
+#'   report, otherwise):
+#'   - **single cell**: only when the `Seurat::FindMarkers` gene universe is
+#'     unfiltered, i.e. `sc_logfc_threshold = 0`, `sc_min_pct = 0` and
+#'     `sc_only_pos = FALSE`; genes are ranked by `sign(log2FC) * -log10(p_val)`.
+#'   - **pseudobulk**: only when `pb_test = "Wald"`; genes are ranked by the signed
+#'     DESeq2 Wald statistic (the `stat` column). It is skipped for `pb_test = "LRT"`
+#'     (the LRT statistic is unsigned).
 #' @param go_params,gsea_params Named lists of GO / GSEA parameters. Pass
 #'   `gsea_params$pathways` (from [get_msigdbr_pathways()]) to skip re-querying.
 #' @param pseudobulk_unit Biological replicate column for DESeq2 (default
@@ -1050,7 +1069,9 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #'   species; stored on the object.
 #' @param padj_cutoff_single_cell,padj_cutoff_pseudobulk Per-level adjusted-p
 #'   cutoffs (default 0.05 each). Each drives, for its level, the volcano plot's
-#'   horizontal cutoff line and the GO foreground-gene selection.
+#'   horizontal cutoff line and the GO foreground-gene selection. The pseudobulk
+#'   cutoff is additionally passed to `DESeq2::results(alpha = )`, so DESeq2's
+#'   independent filtering is optimised for that FDR threshold.
 #' @returns A [scitargets_dea] object.
 #' @export
 run_dea <- function(seurat_obj,
@@ -1247,10 +1268,20 @@ run_dea <- function(seurat_obj,
     ))
   }
 
-  # Gene-set collections for GSEA. Fetch once for all levels; callers can pass a
-  # pre-built list via gsea_params$pathways to avoid re-querying msigdbr.
+  # GSEA is only computed where the gene ranking is valid:
+  #   - single cell: needs the FULL unfiltered gene ranking, so only when
+  #     sc_logfc_threshold == 0, sc_min_pct == 0 and sc_only_pos == FALSE.
+  #   - pseudobulk: only for the Wald test (ranked by the signed DESeq2 Wald
+  #     statistic); the LRT statistic is unsigned, so pseudobulk GSEA is skipped
+  #     for pb_test = "LRT".
+  sc_gsea_ok <- (sc_logfc_threshold == 0) && (sc_min_pct == 0) && !isTRUE(sc_only_pos)
+  pb_gsea_ok <- identical(pb_test, "Wald")
+  # Gene-set collections for GSEA. Fetch once, and only if some level will use it;
+  # callers can pass a pre-built list via gsea_params$pathways to skip msigdbr.
   gsea_pathways <- NULL
-  if (isTRUE(run_gsea)) {
+  if (isTRUE(run_gsea) &&
+    (("single_cell" %in% levels_req && sc_gsea_ok) ||
+      ("pseudobulk" %in% levels_req && pb_gsea_ok))) {
     gsea_pathways <- gsea_params$pathways %||%
       get_msigdbr_pathways(gparams$collections, species = gparams$species)
   }
@@ -1287,6 +1318,9 @@ run_dea <- function(seurat_obj,
             low_count_filter = pb_low_count_filter,
             covariate_key = pb_covariate_key,
             shrinkage = pb_lfc_shrink,
+            # DESeq2 independent filtering is optimised at this FDR cutoff; use the
+            # object's per-level pseudobulk cutoff (stored on @padj_cutoffs).
+            alpha = padj_cutoffs[["pseudobulk"]],
             drop_units = outlier_units
           )
         }
@@ -1319,7 +1353,26 @@ run_dea <- function(seurat_obj,
       go[[lv]] <- .empty_go_levels("GO not requested (run_go = FALSE).", params)
     }
     if (isTRUE(run_gsea)) {
-      gsea[[lv]] <- compute_gsea(markers, gsea_pathways, gparams)
+      if (identical(lv, "single_cell")) {
+        if (sc_gsea_ok) {
+          gsea[[lv]] <- compute_gsea(markers, gsea_pathways, gparams)
+        } else {
+          warning(
+            "Skipping single-cell GSEA: it needs the full unfiltered gene ranking. ",
+            "Set sc_logfc_threshold = 0, sc_min_pct = 0 and sc_only_pos = FALSE.",
+            call. = FALSE
+          )
+        }
+      } else if (identical(lv, "pseudobulk")) {
+        if (pb_gsea_ok) {
+          gsea[[lv]] <- compute_gsea(markers, gsea_pathways, gparams)
+        } else {
+          warning(
+            "Skipping pseudobulk GSEA for pb_test = 'LRT'; use Wald for signed pairwise GSEA.",
+            call. = FALSE
+          )
+        }
+      }
     }
   }
 
@@ -1446,7 +1499,9 @@ compute_gsea_collection <- function(ranks, pathways, params, collection) {
   )
 }
 
-# Run GSEA for every requested collection on one level's marker table.
+# Run GSEA for every requested collection on one level's marker table. The ranking
+# metric is chosen by .gsea_ranks(): the signed DESeq2 Wald statistic when a `stat`
+# column is present (pseudobulk Wald), otherwise sign(log2FC) * -log10(p).
 compute_gsea <- function(markers, pathways_by_collection, gsea_params = list()) {
   params <- .default_gsea_params(gsea_params)
   ranks <- .gsea_ranks(markers)

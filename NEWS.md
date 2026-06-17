@@ -11,9 +11,17 @@ editor_options:
 
 - Added parameters to run_dea to allow the user to set `Seurat::FindMarkers` test.use, group.by, only.pos, min.pct, and logfc.threshold inputs.
 
-- Added a message call warning agains interpretating pseudobulk GO/GSEA when using LRT test. They are still computed but the default Wald test should be used for GO/GSEA computations.
+- Added a message call warning agains interpretating pseudobulk GO when using LRT test. GO is still computed but the default Wald test should be used for the enrichment computations.
 
 - Better handling of GO p-values enrichment. Previously, the adjustment was only realized in the "top N" terms returned by topGO. Now the adjustment is done on all tested terms.
+
+- GSEA is now only computed where the signed gene ranking is valid. For pseudobulk it runs only with `pb_test = "Wald"` and ranks genes by the signed DESeq2 Wald statistic (the `stat` column); it is skipped for `"LRT"` (whose statistic is unsigned). For single cell it runs only when `Seurat::FindMarkers` keeps the full gene universe (`sc_logfc_threshold = 0`, `sc_min_pct = 0`, `sc_only_pos = FALSE`) and keeps ranking genes by `sign(log2FC) * -log10(p_val)`. When GSEA is skipped a warning is emitted and the report omits the GSEA tab for that level.
+
+- GSEA ranking now resolves duplicated gene symbols by keeping the entry with the strongest absolute statistic (previously the arbitrary first occurrence), drops non-finite ranks, and errors early if the marker table has no `p_val` column.
+
+- Pseudobulk DE now checks, before aggregation, that each `pseudobulk_unit` belongs to a single comparison group and errors listing the offending units otherwise (the DESeq2 design assumes one group per replicate).
+
+- Pseudobulk `DESeq2::results()` is now called with `alpha` set to the per-level pseudobulk adjusted-p cutoff (from the object's `padj_cutoffs`, default 0.05) instead of DESeq2's default 0.1, so independent filtering is optimised for the FDR threshold actually used downstream.
 
 # scitargets 1.4.0
 
