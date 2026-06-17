@@ -35,6 +35,16 @@ Targets factories are low-level functions used to generate an ensemble of target
 }
 }
 
+\subsection{Differential expression / GO / GSEA (\link{scitargets_dea} S7 class):}{
+\enumerate{
+\item \link{dea_comparisons}: enumerate the clinical-group comparisons to run (with \code{groups} and \code{clusters} selectors).
+\item \link{run_dea}: run one comparison (single-cell \code{FindMarkers} and/or pseudobulk \code{DESeq2}) with GO and GSEA.
+\item \link{get_msigdbr_pathways}: fetch MSigDB collections (Hallmark, GO:BP, C7 ImmuneSigDB) for GSEA.
+\item Accessors: \link{markers_table}, \link{go_table}, \link{go_barplot}, \link{go_cnetplot}, \link{go_genes_html}, \link{volcano_plot}, \link{gsea_table}, \link{gsea_barplot}.
+\item \link{write_dea_xlsx} / \link{dea_write_xlsx}: write an xlsx report; \link{dea_report_lines}: generate Quarto report sections.
+}
+}
+
 \subsection{Exported functions:}{
 \itemize{
 \item magrittr pipes: \link[magrittr]{\%>\%}, \link[magrittr]{\%<>\%}
@@ -44,5 +54,10 @@ Targets factories are low-level functions used to generate an ensemble of target
 
 \author{
 \strong{Maintainer}: Pierre Solomon \email{pierre.solomon@laposte.net}
+
+Authors:
+\itemize{
+  \item Pierre Solomon \email{pierre.solomon@laposte.net}
+}
 
 }

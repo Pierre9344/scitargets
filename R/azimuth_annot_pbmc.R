@@ -20,6 +20,8 @@ azimuth_annot_pbmc <- function(obj, cluster_to_use = "clusters_0.5") {
     stop("cluster_to_use must br a character variable present in the meta.data of obj")
   }
   SeuratObject::Idents(obj) <- cluster_to_use
-  SeuratObject::DefaultAssay(obj) <- "SCT"
-  return(Azimuth::RunAzimuth(obj, reference = "pbmcref", assay = "SCT"))
+  PreviousDefaultAssay <- SeuratObject::DefaultAssay(obj)
+  SeuratObject::DefaultAssay(obj) <- "RNA"
+  SeuratObject::DefaultAssay(obj) <- PreviousDefaultAssay
+  return(Azimuth::RunAzimuth(obj, reference = "pbmcref", assay = "RNA"))
 }

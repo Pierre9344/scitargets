@@ -41,3 +41,7 @@ targets::tar_make()         # 2. relaunch the pipeline
 quarto::quarto_render(".")  # 3. recompile the report
 ```
 
+## scitargets_dea objects and the qs2 format
+
+The `scitargets_dea` objects produced by `run_dea()` are S7 objects, which the default `qs2` save format does not support. Store the targets that hold them with `format = "rds"` (and, when the target is mapped over the comparisons, return them wrapped in a named one-element list — see the *scitargets_dea* vignette). This is slower and larger on disk than `qs2`, but required for the objects to round-trip correctly.
+

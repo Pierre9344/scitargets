@@ -43,6 +43,19 @@ scitargets::tar_visnetwork_enhanced(
 #| warning: false
 library(targets)
 library(Seurat)
+
+# helper function for PC selection
+get_pc_to_use = function(obj = NA) {
+  pca_stdev <- SeuratObject::Stdev(obj, reduction = "pca")
+  if (length(pca_stdev) == 0L) {
+    stop("No PCA standard deviations found. Check that RunPCA() succeeded and stored reduction = 'pca'.")
+  }
+  keep_pcs <- which(pca_stdev > stats::median(pca_stdev))
+  if (length(keep_pcs) == 0L) {
+    keep_pcs <- length(pca_stdev)
+  }
+  return(max(keep_pcs))
+}
 ```
 
 # Quality Control
@@ -151,9 +164,9 @@ Seurat::VlnPlot(seurat_obj_RUN_ID_filter,
 
 Seurat::Idents(seurat_obj_RUN_ID_filter) <- "clusters"
 Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "pca")
-elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_filter)
-max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
-plot(elbow)
+Seurat::ElbowPlot(seurat_obj_RUN_ID_filter)
+source("./QMD/helper_functions.R")
+max_dim = get_pc_to_use(seurat_obj_RUN_ID_filter)
 ```
 
 Based on the @fig-pca-1-2, we will only use the first `r max_dim` Principal Components of the PCA to compute the next UMAP and t-SNE.
@@ -204,14 +217,14 @@ tar_load(seurat_obj_RUN_ID_hto_demux)
 table(seurat_obj_RUN_ID_hto_demux$HTO_classification.global) %>%
   as.data.frame() %>%
   dplyr::filter(Freq > 0) %>%
-  reactable::reactable()
+  DT2::dt2(extensions = "Buttons", options = list(pageLength = 10, layout = list(topEnd = list(buttons = list("copy", "csv", "excel", "pdf", "print")))))
 table(
   seurat_obj_RUN_ID_hto_demux$HTO_classification.global,
   seurat_obj_RUN_ID_hto_demux$HTO_classification
 ) %>%
   as.data.frame() %>%
   dplyr::filter(Freq > 0) %>%
-  reactable::reactable(defaultSorted = "Var1")
+  DT2::dt2(extensions = "Buttons", options = list(pageLength = 10, layout = list(topEnd = list(buttons = list("copy", "csv", "excel", "pdf", "print")))))
 ```
 
 ## All cells
@@ -298,9 +311,9 @@ Seurat::HTOHeatmap(seurat_obj_RUN_ID_hto_demux,
 
 tar_load(seurat_obj_RUN_ID_non_neg)
 Seurat::DimPlot(seurat_obj_RUN_ID_non_neg, reduction = "pca")
-elbow <- Seurat::ElbowPlot(seurat_obj_RUN_ID_non_neg)
-max_dim <- tail(elbow$data$dims[elbow$data$stdev > median(elbow$data$stdev)], 1)
-plot(elbow)
+Seurat::ElbowPlot(seurat_obj_RUN_ID_non_neg)
+source("./QMD/helper_functions.R")
+max_dim = get_pc_to_use(seurat_obj_RUN_ID_non_neg)
 ```
 
 To compute the next UMAP, t-SNE we used the PC 1 to `r max_dim`.
@@ -475,10 +488,10 @@ if (tar_exist_objects("markers_RUN_ID")) {
     dplyr::group_by(cluster)
   markers %>%
     dplyr::count() %>%
-    reactable::reactable()
+    DT2::dt2(extensions = "Buttons", options = list(pageLength = 10, layout = list(topEnd = list(buttons = list("copy", "csv", "excel", "pdf", "print")))))
   top10 <- markers %>%
     dplyr::top_n(n = 10, wt = avg_log2FC)
-  reactable::reactable(top10)
+  DT2::dt2(top10, extensions = "Buttons", options = list(pageLength = 10, layout = list(topEnd = list(buttons = list("copy", "csv", "excel", "pdf", "print")))))
 }
 ```
 

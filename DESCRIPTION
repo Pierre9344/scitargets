@@ -1,31 +1,49 @@
 Package: scitargets
 Title: Single-cell CITE-seq analysis with targets pipeline
-Version: 1.3.0
+Version: 1.4.0
 Description: This package provides target factories and utilities for analyzing single-cell CITE-seq data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
-Imports: 
+Imports:
     magrittr,
     fs,
-    Seurat (>= 5.3.1),
+    Seurat (>= 5.5.0),
     SeuratObject,
     targets,
     dplyr,
     tidyselect,
     visNetwork,
     stats,
+    methods,
+    utils,
     Azimuth,
     stringr,
+    tidyr,
     ggraph,
     ggplot2,
+    ggpubr,
+    ggiraph,
+    ggrepel,
     RColorBrewer,
     igraph,
     tibble,
     scales,
-    purrr
-Suggests: 
+    purrr,
+    S7,
+    openxlsx,
+    DESeq2,
+    fgsea,
+    msigdbr,
+    topGO,
+    mt,
+    DT2
+Suggests:
+    ggupset,
+    org.Hs.eg.db,
+	org.Mm.eg.db,
+    apeglm,
+    ashr,
     knitr,
     rmarkdown,
     devtools,
@@ -44,3 +62,4 @@ Authors@R:
     person("Pierre", "Solomon", , "pierre.solomon@laposte.net", role = c("aut", "cre"))
 Author: Pierre Solomon
 Maintainer: Pierre Solomon <pierre.solomon@laposte.net>
+Config/roxygen2/version: 8.0.0

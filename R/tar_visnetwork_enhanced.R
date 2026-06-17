@@ -65,8 +65,8 @@ tar_visnetwork_enhanced <- function(
   # Assign shapes
   nodes$shape <- dplyr::case_when(
     nodes$type == "function" ~ "box",
-    nodes$type == "pattern" ~ "database", # Pattern nodes can be visually distinct
-    TRUE ~ "dot"
+    nodes$type == "pattern" ~ "hexagon", # Pattern nodes can be visually distinct
+    .default =  "dot"
   )
 
   # Filter based on dataset variable
@@ -77,7 +77,8 @@ tar_visnetwork_enhanced <- function(
     to_keep <- paste(stats::na.omit(dataset), collapse = "|")
     nodes_v2 <- nodes$name[stringr::str_detect(nodes$name, paste(c("cellranger_output_", "seurat_obj_", "parameters_", "markers_"), collapse = "|"))]
     nodes_v2 <- nodes_v2[stringr::str_detect(nodes_v2, to_keep, negate = TRUE)]
-    nodes %<>% dplyr::filter(!name %in% nodes_v2)
+    nodes %<>%
+      dplyr::filter(!name %in% nodes_v2)
   }
 
   # Filter edges to only include connections among relevant nodes

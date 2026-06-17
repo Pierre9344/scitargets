@@ -42,8 +42,15 @@ filter_cell_and_run_reduction <- function(obj = NULL,
       features = SeuratObject::VariableFeatures(.),
       seed.use = local_seed
     )
-  elbow <- Seurat::ElbowPlot(obj)
-  max_dim <- utils::tail(elbow$data$dims[elbow$data$stdev > stats::median(elbow$data$stdev)], 1)
+  pca_stdev <- SeuratObject::Stdev(obj, reduction = "pca")
+  if (length(pca_stdev) == 0L) {
+    stop("No PCA standard deviations found. Check that RunPCA() succeeded and stored reduction = 'pca'.")
+  }
+  keep_pcs <- which(pca_stdev > stats::median(pca_stdev))
+  if (length(keep_pcs) == 0L) {
+    keep_pcs <- length(pca_stdev)
+  }
+  max_dim <- max(keep_pcs)
   message(paste0("Computing UMAP and t-SNE. Determining the number of PC to use (1:", max_dim, ") by their standard deviation."))
   obj %<>%
     Seurat::FindNeighbors(

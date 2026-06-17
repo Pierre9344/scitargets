@@ -8,11 +8,13 @@ You can install scitargets using devtools. Keep the build_vignettes argument to 
 
 ```{r}
 install.package("devtools")
-# At the time I write this, seurat is on the version 5.3.0 on cran.
-# I force seurat 5.3.1 or higher as the 5.3.0 version is bugged when using the azimuth package
-devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
 devtools::install_github("https://github.com/Pierre9344/scitargets", build_vignettes = T)
+# the first time you install the package, it may be necessary to set build_vignettes = F and then rerun devtools with build_vignettes = T
 ```
+
+scitargets requires Seurat\>=5.3.1. The version 1.4.0 of scitargets was coded using Seurat `5.5.0` and SeuratObject `5.4.0`.
+
+Please note that the version `1.5`of `scitargets` was coded using assistance from `Claude Code (Opus 4.8)` The code was checked manually step by step and tested in one of my work project.
 
 ## Example
 
@@ -22,7 +24,7 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
 3.  Open the **"\_targets.R"** script and modify it to run the pipeline on each run.
 
-    -   Duplicate the **"tar_demultiplex_hto"** function to have one call per run and modify the argument (the run_id argument must correspond the subfolder in "data/cellranger_output/".
+    - Duplicate the **"tar_demultiplex_hto"** function to have one call per run and modify the argument (the run_id argument must correspond the subfolder in "data/cellranger_output/".
 
 4.  (Optional), unquote the "**crew**" code in "\_targets.R" to allow a parallelization of the pipeline steps and accelerate the pipeline).
 
@@ -30,14 +32,13 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 
 6.  Modify the document to fit your run:
 
-    -   set the RUN_ID parameter (inside the yaml header) to the name of the run folder inside the **data/cellranger_output/** folder.
+    - set the RUN_ID parameter (inside the yaml header) to the name of the run folder inside the **data/cellranger_output/** folder.
 
-    -   replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_ID parameter in the yaml header).
+    - replace all occurence of **"RUN_ID"** by **"\<your_run_id\>"** (same as the RUN_ID parameter in the yaml header).
 
 7.  Modify the **"\_quarto.yml"** file to indicate each reports (qmd document) inside the website
 
 8.  Run the pipeline using **"targets::tar_make()"**
-
 
 ```{r}
 library(targets)
@@ -52,8 +53,8 @@ Build-in Azimuth annotation are currently only available for the (human) pbmc-re
 
 It is also recommanded to use:
 
--  Seurat 5.3.1.1000
--  SeuratObject 5.2.0
--  Azimuth 0.5.0
+- Seurat 5.3.1.1000
+- SeuratObject 5.2.0
+- Azimuth 0.5.0
 
 Other versions may be compatible but not tested

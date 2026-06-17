@@ -75,15 +75,17 @@ Additionally, *targets* also track dependencies between steps allowing to keep t
 
 -   qs2: allow the use of the qs file format (more efficient format than the default rds format of R to save object on disk.
 
--   Seurat (\>= 5.3.1)
+-   Seurat (\>= 5.5.0)
 
-```{r}
-#| include: true
-#| eval: false
-# At the time I write this, seurat is on the version 5.3.0 on cran.
-# Here, I force the use of Seurat >= 5.3.1 as the 5.3.0 is not compatible with the azimuth package
-devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
-```
+-   Azimuth
+
+-   ggplot2 and ggiraph
+
+-   S7 (scitargets_dea is based on S7)
+
+-   fgsea, msigdbr, topGO for GO and GSEA analysis. You may also install org.Hs.eg.db or org.Mm.eg.db depending on your data
+
+-   DESeq2 is used for pseudobulk differential analysis (apeglm and ashr may also be necessary for shrinkage of the fold change). 
 
 -   devtools: used to give information about the package version in the report.
 
@@ -95,11 +97,7 @@ devtools::install_github("satijalab/seurat", "fix/v.5.3.1", force=TRUE)
 
 -   reticulate: used in the report to indicate the version of python dependencies.
 
-### Python
-
--   [umap-learn](https://umap-learn.readthedocs.io/en/latest/): Seurat depend on the umap-learn python package when computing the UMAP.
-
--   [session_info](https://pypi.org/project/session-info/): the scitargets report use the session_info package to report the version of umap-learn and some of his dependencies.
+-   Some other R packages a
 
 ### Quarto
 
@@ -155,7 +153,7 @@ list(
     run_id = "", # identifier for the run
     project_id = "",
     run_path = "", # relative or absolute path to a subfolder of data/cellranger_output with the files of the runs
-    min_gene_detected = 200,
+    min_genes_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
     singlets_dim_to_use = 1:15
@@ -182,17 +180,19 @@ If you have multiple datasets to analyze, you must duplicate the call to 'tar_de
 #| eval: false
 list(
   scitargets::tar_demultiplex_hto(
-    run_id = "run_id_1",
-    project_id = "project_id_1",
-    min_gene_detected = 200,
+    run_id = "RUN_1",
+    project_id = "my_project",
+    run_path = "RUN_1", # subfolder of data/cellranger_output/ for this run
+    min_genes_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
     singlets_dim_to_use = 1:15
   ),
   scitargets::tar_demultiplex_hto(
-    run_id = "run_id_2",
-    project_id = "project_id_2",
-    min_gene_detected = 200,
+    run_id = "RUN_2",
+    project_id = "my_project",
+    run_path = "RUN_2",
+    min_genes_detected = 200,
     max_genes_detected = 4000,
     mt_percent_cutoff = 5,
     singlets_dim_to_use = 1:15
@@ -245,57 +245,92 @@ You can use the **"singlets_clusters_to_use"** argument to:
 
 The argument took a value of type character that correspond to a valid column in the singlets object metadata.
 
-As clusters are computed for resolutions going from 0.2 to 1, you can identify the best clustering in the report and indicate his name (e.g. clusters_0.5) to the pipeline before relaunching it. Please note that it is still possible to reuse the scitargets function to customize the pipeline (see the targets-factories vignette).
+As clusters are computed for resolutions going from 0.2 to 1.5 (by steps of 0.1), you can identify the best clustering in the report and indicate his name (e.g. clusters_0.5) to the pipeline before relaunching it. Please note that it is still possible to reuse the scitargets function to customize the pipeline (see the targets-factories vignette).
 
 # And after the demultiplexing
 
-Once it is done you are free to expand the project as you need. I recommand to do the heavy computation inside the targets pipeline. You can access the Seurat object of the singlets by referring to the "seurat_obj\_<run_id>\_singlets".
+Once it is done you are free to expand the project as you need. I recommand to do the heavy computation inside the targets pipeline. You can access the Seurat object of the singlets of a run by referring to its `seurat_obj_<run_id>_singlets` target.
+
+A common next step is to **merge the runs** and run a **differential-expression analysis** with the `scitargets_dea` tools. The example below demultiplexes two runs (`RUN_1`, `RUN_2`), merges their singlets, then enumerates and runs the comparisons. See the *scitargets_dea* vignette for the full API.
 
 ```{r}
 #| include: true
 #| eval: false
-# run_id = run_1
+library(targets)
+library(tarchetypes)
+
 list(
   scitargets::tar_demultiplex_hto(
-    run_id = "",
-    project_id = "",
-    min_gene_detected = 200,
-    max_genes_detected = 4000,
-    mt_percent_cutoff = 5,
-    singlets_dim_to_use = 1:15
+    run_id = "RUN_1", project_id = "my_project", run_path = "RUN_1",
+    min_genes_detected = 200, max_genes_detected = 4000,
+    mt_percent_cutoff = 5, singlets_dim_to_use = 1:15,
+    singlets_clusters_to_use = "clusters_0.5"
   ),
-  tar_target(
-    name = markers_run_1,
-    command = Seurat::FindAllMarkers(
-      seurat_obj_run_1_singlets, # name of the steps containing the singlets for run_1 (generated by tar_demultiplex_htoà
-      assay = "SCT",
-      group.by = "clusters_0.5",
-      test.use = "wilcox",
-      random.seed = tar_seed_get(), # use a seed generated by targets using the main seed and the step name
-      only.pos = FALSE,
-      min.pct = 0.25,
-      logfc.threshold = 0.25
-      ),
-    description = "Markers for the clusters of run_1"
+  scitargets::tar_demultiplex_hto(
+    run_id = "RUN_2", project_id = "my_project", run_path = "RUN_2",
+    min_genes_detected = 200, max_genes_detected = 4000,
+    mt_percent_cutoff = 5, singlets_dim_to_use = 1:15,
+    singlets_clusters_to_use = "clusters_0.5"
   ),
+
+  # ---- Merge the per-run singlets -----------------------------------------
   tar_target(
-    markers_run_1_filtered,
-    # Not really interesting to define a target just to filter a data.frame as this could be done in the report
-    # This is just to show how we can call a target created by ourself like one created by scitargets.
-    command = dplyr::filter(markers_run_1, padj < 0.05, logfc > 0),
-    description = "Significant markers for the clusters of run_1"
-  ),
-  # The next target use bracket to run multiple commands
-  tar_target(
-    name = azimuth_run_1,
+    name = seurat_merged,
     command = {
-      cell <- seurat_obj_run_1_singlets
-      Idents(cell) <- cluster_to_use
-      DefaultAssay(cell) <- "SCT"
-      cell %<>% Azimuth::RunAzimuth(reference = "pbmcref", assay = "SCT")
-      return(cell)
-    }
+      # MINIMAL example: a plain merge of the per-run singlets. It does NOT
+      # correct batch effects between runs. For a real analysis, evaluate
+      # integration methods (Harmony, CCA / RPCA via Seurat::IntegrateLayers,
+      # scVI, ...) and choose one based on your data before the DE analysis.
+      merged <- merge(
+        x = seurat_obj_RUN_1_singlets,
+        y = seurat_obj_RUN_2_singlets,
+        add.cell.ids = c("RUN_1", "RUN_2")
+      )
+      # Required before FindMarkers / pseudobulk on a merged SCT assay.
+      merged <- Seurat::PrepSCTFindMarkers(merged)
+      merged
+    },
+    description = "Minimal merge of the per-run singlets (no batch integration)."
   ),
+
+  # ---- Differential expression with scitargets_dea ------------------------
+  tar_target(
+    name = comparisons,
+    command = scitargets::dea_comparisons(
+      meta = seurat_merged@meta.data,
+      group_by = "condition",       # metadata column holding the groups to compare
+      cluster_by = "clusters_0.5",  # compare cells within the same cluster only
+      groups = NA, clusters = NA, min_cells_per_group = 3
+    ),
+    description = "Group comparisons to run within each cluster"
+  ),
+  tar_target(
+    name = dea_results,
+    command = {
+      res <- scitargets::run_dea(
+        seurat_obj = seurat_merged,
+        group_by   = comparisons$group_by,
+        cluster_by = comparisons$cluster_by,
+        cluster    = comparisons$cluster,
+        group1     = comparisons$group1,
+        group2     = comparisons$group2,
+        level      = "both",
+        pseudobulk_unit = "patient_id"
+      )
+      # scitargets_dea is an S7 object: wrap it so the branch stores the object
+      # itself, and name the branch so it is easy to find in the report.
+      structure(
+        list(res),
+        names = paste0(comparisons$group1, "__", comparisons$group2,
+                       "_", comparisons$cluster)
+      )
+    },
+    pattern = map(comparisons),
+    deployment = "main",  # keep the S7 object on the main R process
+    format = "rds",       # S7 is not supported by the default qs2 format
+    description = "Differential expression per comparison"
+  ),
+
   ###########################################################################
   ##  RENDER PROJECT WEBSITE  (leave it as the last step of the pipeline)  ##
   ###########################################################################
@@ -303,8 +338,48 @@ list(
 )
 ```
 
+The same merge and analysis without a pipeline:
+
+```{r}
+#| include: true
+#| eval: false
+# 1. Merge the per-run singlets (minimal; see the caveat above).
+seurat_merged <- merge(
+  x = seurat_obj_RUN_1_singlets,
+  y = seurat_obj_RUN_2_singlets,
+  add.cell.ids = c("RUN_1", "RUN_2")
+)
+seurat_merged <- Seurat::PrepSCTFindMarkers(seurat_merged)
+
+# 2. Enumerate the comparisons and run each one.
+comparisons <- scitargets::dea_comparisons(
+  meta = seurat_merged@meta.data,
+  group_by = "condition", cluster_by = "clusters_0.5",
+  groups = NA, clusters = NA, min_cells_per_group = 3
+)
+dea_results <- lapply(seq_len(nrow(comparisons)), function(i) {
+  scitargets::run_dea(
+    seurat_obj = seurat_merged,
+    group_by   = comparisons$group_by[i],
+    cluster_by = comparisons$cluster_by[i],
+    cluster    = comparisons$cluster[i],
+    group1     = comparisons$group1[i],
+    group2     = comparisons$group2[i],
+    level      = "both",
+    pseudobulk_unit = "patient_id"
+  )
+})
+names(dea_results) <- comparisons$comparison_name
+```
+
+::: callout-note
+GO and GSEA enrichment use the organism annotation databases, which are in
+`Suggests`: install `org.Hs.eg.db` (human) or `org.Mm.eg.db` (mouse), plus
+`ggupset` for the UpSet report plots, if you want those outputs.
+:::
+
 # Limitations
 
 ## Analysis
 
-Currently, this package only help with the demultiplexing of the HTO. I intent to add more target factories to determine celltypes with Azimuth and to merge different runs into a single Seurat object.
+This package automates the per-run quality control, HTO demultiplexing, singlet extraction, dimensionality reduction, clustering and (optionally) Azimuth annotation through the `tar_demultiplex_hto()` factory, and provides the `scitargets_dea` tools for differential expression. Merging / integrating runs is left to you (there is no merge factory yet) — see the example above.
