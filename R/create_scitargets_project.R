@@ -8,7 +8,7 @@ create_quarto_yaml <- function(path) {
     to = path,
     recursive = T,
     overwrite = T
-    )
+  )
   file.copy(
     from = paste0(template_path, "/rprofile.txt"),
     to = paste0(path, "/.Rprofile"),

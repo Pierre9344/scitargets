@@ -23,9 +23,9 @@ quarto::write_yaml_metadata_block(
   found_markers = tar_exist_objects("markers_RUN_ID")
 )
 
-run_clusters_for_markers = "clusters_0.5" # used as default
+run_clusters_for_markers <- "clusters_0.5" # used as default
 if ("singlets_clusters_for_markers" %in% names(tar_read(parameters_RUN_ID))) {
-  run_clusters_for_markers = tar_read(parameters_RUN_ID)[["singlets_clusters_for_markers"]]
+  run_clusters_for_markers <- tar_read(parameters_RUN_ID)[["singlets_clusters_for_markers"]]
 }
 ```
 
@@ -33,7 +33,7 @@ if ("singlets_clusters_for_markers" %in% names(tar_read(parameters_RUN_ID))) {
 scitargets::tar_visnetwork_enhanced(
   keep_report = T,
   dataset = params$run
-  )
+)
 ```
 
 # Libraries
@@ -45,7 +45,7 @@ library(targets)
 library(Seurat)
 
 # helper function for PC selection
-get_pc_to_use = function(obj = NA) {
+get_pc_to_use <- function(obj = NA) {
   pca_stdev <- SeuratObject::Stdev(obj, reduction = "pca")
   if (length(pca_stdev) == 0L) {
     stop("No PCA standard deviations found. Check that RunPCA() succeeded and stored reduction = 'pca'.")
@@ -76,9 +76,9 @@ The loaded Seurat object loaded from CellRanger contains **`r as.integer(dim(seu
 #| fig-width: 15
 
 feat_to_plot <- c(
-    "nFeature_RNA", "nCount_RNA", "percent.mt",
-    "nFeature_HTO", "nCount_HTO"
-  )
+  "nFeature_RNA", "nCount_RNA", "percent.mt",
+  "nFeature_HTO", "nCount_HTO"
+)
 p <- Seurat::VlnPlot(seurat_obj_RUN_ID_raw,
   features = feat_to_plot,
   ncol = 5, alpha = 0.1, combine = FALSE
@@ -88,13 +88,13 @@ p[["nFeature_RNA"]] <- p[["nFeature_RNA"]] +
   ggplot2::geom_hline(
     yintercept = c(
       tar_read(parameters_RUN_ID)$min_genes_detected,
-      ),
+    ),
     colour = "red", linetype = "dashed", linewidth = 0.5
   ) +
   ggplot2::geom_hline(
     yintercept = c(
       tar_read(parameters_RUN_ID)$max_genes_detected
-      ),
+    ),
     colour = "red", linetype = "dashed", linewidth = 0.5
   )
 p[["percent.mt"]] <- p[["percent.mt"]] +
@@ -106,11 +106,12 @@ p[["percent.mt"]] <- p[["percent.mt"]] +
   )
 p <- lapply(p, function(x) {
   x +
-    ggplot2::theme(legend.position = "none",
-          axis.text.x = ggplot2::element_blank()
-          ) +
+    ggplot2::theme(
+      legend.position = "none",
+      axis.text.x = ggplot2::element_blank()
+    ) +
     ggplot2::xlab("")
-  })
+})
 patchwork::wrap_plots(p, ncol = 5)
 rm(p, feat_to_plot)
 ```
@@ -166,7 +167,7 @@ Seurat::Idents(seurat_obj_RUN_ID_filter) <- "clusters"
 Seurat::DimPlot(seurat_obj_RUN_ID_filter, reduction = "pca")
 Seurat::ElbowPlot(seurat_obj_RUN_ID_filter)
 source("./QMD/helper_functions.R")
-max_dim = get_pc_to_use(seurat_obj_RUN_ID_filter)
+max_dim <- get_pc_to_use(seurat_obj_RUN_ID_filter)
 ```
 
 Based on the @fig-pca-1-2, we will only use the first `r max_dim` Principal Components of the PCA to compute the next UMAP and t-SNE.
@@ -313,7 +314,7 @@ tar_load(seurat_obj_RUN_ID_non_neg)
 Seurat::DimPlot(seurat_obj_RUN_ID_non_neg, reduction = "pca")
 Seurat::ElbowPlot(seurat_obj_RUN_ID_non_neg)
 source("./QMD/helper_functions.R")
-max_dim = get_pc_to_use(seurat_obj_RUN_ID_non_neg)
+max_dim <- get_pc_to_use(seurat_obj_RUN_ID_non_neg)
 ```
 
 To compute the next UMAP, t-SNE we used the PC 1 to `r max_dim`.
@@ -527,7 +528,7 @@ FeaturePlotWithCluster <- function(obj = NULL,
 if (tar_exist_objects("markers_RUN_ID")) {
   obj <- NA
   if (tar_exist_objects("seurat_obj_RUN_ID_feat_removed_singlets")) {
-    obj <-  seurat_obj_RUN_ID_feat_removed_singlets
+    obj <- seurat_obj_RUN_ID_feat_removed_singlets
   } else {
     obj <- seurat_obj_RUN_ID_singlets
   }
@@ -535,8 +536,9 @@ if (tar_exist_objects("markers_RUN_ID")) {
   for (G in sort(unique(top10$gene))) {
     cat("\n\n###", G, "\n\n")
     cat("The ", G, " gene is among the top 10 markers of the cluster(s): ",
-    top10 %>% dplyr::filter(gene==G) %>% dplyr::pull(cluster) %>%
-      paste(collapse = ', '), ".\n\n", sep = ""
+      top10 %>% dplyr::filter(gene == G) %>% dplyr::pull(cluster) %>%
+        paste(collapse = ", "), ".\n\n",
+      sep = ""
     )
     p <- FeaturePlotWithCluster(obj, features = G)
     plot(p)

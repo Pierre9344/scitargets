@@ -19,8 +19,7 @@ extract_singlets <- function(obj = NULL,
                              dims_to_use = 1:15,
                              feat_to_remove = NULL,
                              clusters_resolutions = base::seq(from = 0.2, to = 1.5, by = 0.1),
-                             default_seed = 1234
-                             ) {
+                             default_seed = 1234) {
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   } else if (!is.integer(dims_to_use)) {
@@ -33,7 +32,7 @@ extract_singlets <- function(obj = NULL,
   # Subset singlet, set default assay and idents
   obj %<>% base::subset(
     .$HTO_classification.global == "Singlet"
-    )
+  )
   # Remove chr Y genes if feat_to_remove is valid.
   # UMAP were they are not removed show a difference between man and woman (see the report)
   if (!is.null(feat_to_remove) && is.character(feat_to_remove)) {
@@ -45,9 +44,11 @@ extract_singlets <- function(obj = NULL,
   SeuratObject::Idents(obj) <- "HTO_classification"
   # Remove metadata that are no longer needed
   obj@meta.data %<>%
-    dplyr::select(-tidyselect::any_of(c("RNA_snn_res.0.5",
-                                        "SCT_snn_res.0.5",
-                                        "seurat_clusters")))
+    dplyr::select(-tidyselect::any_of(c(
+      "RNA_snn_res.0.5",
+      "SCT_snn_res.0.5",
+      "seurat_clusters"
+    )))
   # Recompute dimensions reductions and clusters
   obj %<>%
     Seurat::SCTransform(

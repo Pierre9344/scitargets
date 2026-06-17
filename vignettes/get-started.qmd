@@ -298,8 +298,8 @@ list(
     name = comparisons,
     command = scitargets::dea_comparisons(
       meta = seurat_merged@meta.data,
-      group_by = "condition",       # metadata column holding the groups to compare
-      cluster_by = "clusters_0.5",  # compare cells within the same cluster only
+      group_by = "condition", # metadata column holding the groups to compare
+      cluster_by = "clusters_0.5", # compare cells within the same cluster only
       groups = NA, clusters = NA, min_cells_per_group = 3
     ),
     description = "Group comparisons to run within each cluster"
@@ -309,25 +309,27 @@ list(
     command = {
       res <- scitargets::run_dea(
         seurat_obj = seurat_merged,
-        group_by   = comparisons$group_by,
+        group_by = comparisons$group_by,
         cluster_by = comparisons$cluster_by,
-        cluster    = comparisons$cluster,
-        group1     = comparisons$group1,
-        group2     = comparisons$group2,
-        level      = "both",
+        cluster = comparisons$cluster,
+        group1 = comparisons$group1,
+        group2 = comparisons$group2,
+        level = "both",
         pseudobulk_unit = "patient_id"
       )
       # scitargets_dea is an S7 object: wrap it so the branch stores the object
       # itself, and name the branch so it is easy to find in the report.
       structure(
         list(res),
-        names = paste0(comparisons$group1, "__", comparisons$group2,
-                       "_", comparisons$cluster)
+        names = paste0(
+          comparisons$group1, "__", comparisons$group2,
+          "_", comparisons$cluster
+        )
       )
     },
     pattern = map(comparisons),
-    deployment = "main",  # keep the S7 object on the main R process
-    format = "rds",       # S7 is not supported by the default qs2 format
+    deployment = "main", # keep the S7 object on the main R process
+    format = "rds", # S7 is not supported by the default qs2 format
     description = "Differential expression per comparison"
   ),
 
@@ -360,12 +362,12 @@ comparisons <- scitargets::dea_comparisons(
 dea_results <- lapply(seq_len(nrow(comparisons)), function(i) {
   scitargets::run_dea(
     seurat_obj = seurat_merged,
-    group_by   = comparisons$group_by[i],
+    group_by = comparisons$group_by[i],
     cluster_by = comparisons$cluster_by[i],
-    cluster    = comparisons$cluster[i],
-    group1     = comparisons$group1[i],
-    group2     = comparisons$group2[i],
-    level      = "both",
+    cluster = comparisons$cluster[i],
+    group1 = comparisons$group1[i],
+    group2 = comparisons$group2[i],
+    level = "both",
     pseudobulk_unit = "patient_id"
   )
 })

@@ -48,29 +48,29 @@ scitargets_dea <- S7::new_class(
   "scitargets_dea",
   properties = list(
     comparison_name = S7::class_character,
-    group_by        = S7::class_character, # metadata column holding the groups
-    cluster_by      = S7::class_character, # metadata column holding the clustering
-    cluster         = S7::class_character, # cluster value this comparison sits in
-    groups          = S7::class_character, # the two group labels being compared
-    group1          = S7::class_character,
-    group2          = S7::class_character,
-    levels          = S7::class_character, # subset of c("single_cell","pseudobulk")
+    group_by = S7::class_character, # metadata column holding the groups
+    cluster_by = S7::class_character, # metadata column holding the clustering
+    cluster = S7::class_character, # cluster value this comparison sits in
+    groups = S7::class_character, # the two group labels being compared
+    group1 = S7::class_character,
+    group2 = S7::class_character,
+    levels = S7::class_character, # subset of c("single_cell","pseudobulk")
     pseudobulk_unit = S7::class_character, # replicate column for pseudobulk (e.g. patient_id)
-    n_cells         = S7::new_property(DataFrame, default = quote(data.frame())),
-    de              = S7::class_list,      # level -> standardized marker data.frame
-    go              = S7::class_list,      # level -> direction -> ontology -> topGO result
-    gsea            = S7::class_list,      # level -> collection -> fgsea result (stage 3)
-    pca             = S7::new_property(S7::class_list, default = list()), # level -> VST PCA + outliers (pseudobulk QC)
-    de_params       = S7::class_list,
-    go_params       = S7::class_list,
-    gsea_params     = S7::class_list,
-    species         = S7::new_property(S7::class_character, default = "human"), # "human" / "mouse"
-    padj_cutoffs    = S7::new_property(            # per-level adjusted-p cutoff:
-      S7::class_list,                              # volcano horizontal line + GO
+    n_cells = S7::new_property(DataFrame, default = quote(data.frame())),
+    de = S7::class_list, # level -> standardized marker data.frame
+    go = S7::class_list, # level -> direction -> ontology -> topGO result
+    gsea = S7::class_list, # level -> collection -> fgsea result (stage 3)
+    pca = S7::new_property(S7::class_list, default = list()), # level -> VST PCA + outliers (pseudobulk QC)
+    de_params = S7::class_list,
+    go_params = S7::class_list,
+    gsea_params = S7::class_list,
+    species = S7::new_property(S7::class_character, default = "human"), # "human" / "mouse"
+    padj_cutoffs = S7::new_property( # per-level adjusted-p cutoff:
+      S7::class_list, # volcano horizontal line + GO
       default = quote(list(single_cell = 0.05, pseudobulk = 0.05)) # foreground genes
     ),
-    status          = S7::class_character,
-    reason          = S7::class_character
+    status = S7::class_character,
+    reason = S7::class_character
   ),
   validator = function(self) {
     problems <- character()
@@ -116,9 +116,11 @@ scitargets_dea <- S7::new_class(
       problems <- c(problems, "@pca must be a list.")
     }
     if (!is.list(self@padj_cutoffs) ||
-        !all(vapply(self@padj_cutoffs,
-                    function(v) is.numeric(v) && length(v) == 1L && v > 0 && v <= 1,
-                    logical(1L)))) {
+      !all(vapply(
+        self@padj_cutoffs,
+        function(v) is.numeric(v) && length(v) == 1L && v > 0 && v <= 1,
+        logical(1L)
+      ))) {
       problems <- c(problems, "@padj_cutoffs must be a list of numeric scalars in (0, 1].")
     }
 
@@ -343,7 +345,8 @@ S7::method(volcano_plot, scitargets_dea) <- function(x,
   if (isTRUE(interactive)) {
     p <- base + ggiraph::geom_point_interactive(
       ggplot2::aes(tooltip = tooltip, data_id = Gene, color = significant),
-      alpha = 0.75, size = 2)
+      alpha = 0.75, size = 2
+    )
     return(ggiraph::girafe(
       ggobj = p,
       width_svg = width_svg,
@@ -351,14 +354,18 @@ S7::method(volcano_plot, scitargets_dea) <- function(x,
       options = list(
         ggiraph::opts_hover(css = "fill:orange;stroke:black;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base +
     ggplot2::geom_point(ggplot2::aes(color = significant), alpha = 0.75, size = 2) +
     ggrepel::geom_text_repel(
       data = plot_df[plot_df$significant, , drop = FALSE],
-      ggplot2::aes(label = Gene), size = 3, max.overlaps = 20, show.legend = FALSE)
+      ggplot2::aes(label = Gene), size = 3, max.overlaps = 20, show.legend = FALSE
+    )
 }
 
 # Pseudobulk-sample PCA (DESeq2 VST). Colour = comparison role (group1/group2/
@@ -374,7 +381,8 @@ S7::method(pca_plot, scitargets_dea) <- function(x,
   pca <- x@pca[[level]]
   if (is.null(pca) || !identical(pca$status, "computed") || is.null(pca$coords)) {
     return(.no_result_plot(
-      (if (is.null(pca)) NULL else pca$reason) %||% "No pseudobulk PCA available."))
+      (if (is.null(pca)) NULL else pca$reason) %||% "No pseudobulk PCA available."
+    ))
   }
   df <- pca$coords
   df$unit <- sub("^g", "", df$unit)
@@ -382,39 +390,52 @@ S7::method(pca_plot, scitargets_dea) <- function(x,
   xlab <- sprintf("PC1 (%.1f%%)", 100 * ve[["PC1"]])
   ylab <- if (is.finite(ve[["PC2"]])) sprintf("PC2 (%.1f%%)", 100 * ve[["PC2"]]) else "PC2"
   df$Outlier <- ifelse(df$outlier, "outlier", "kept")
-  df$tooltip <- paste0("Sample: ", df$unit, "\nGroup: ", df$group,
-                       "\nrole: ", df$comparison_role,
-                       "\noutlier: ", ifelse(df$outlier, "yes", "no"))
+  df$tooltip <- paste0(
+    "Sample: ", df$unit, "\nGroup: ", df$group,
+    "\nrole: ", df$comparison_role,
+    "\noutlier: ", ifelse(df$outlier, "yes", "no")
+  )
 
   p <- ggplot2::ggplot(df, ggplot2::aes(x = PC1, y = PC2)) +
     ggplot2::scale_shape_manual(values = c(kept = 16, outlier = 17), name = "Outlier") +
     ggplot2::labs(
       x = xlab, y = ylab, color = "Role", shape = "Outlier",
       title = "Pseudobulk PCA (DESeq2 VST)",
-      subtitle = paste0("Group 1: ", x@group1, " vs Group 2: ", x@group2,
-                        " | Cluster: ", x@cluster)
+      subtitle = paste0(
+        "Group 1: ", x@group1, " vs Group 2: ", x@group2,
+        " | Cluster: ", x@cluster
+      )
     ) +
     ggplot2::theme_classic(base_size = 13)
 
   if (isTRUE(interactive)) {
     p <- p + ggiraph::geom_point_interactive(
-      ggplot2::aes(color = comparison_role, shape = Outlier,
-                   tooltip = tooltip, data_id = sample),
-      size = 3, alpha = 0.85)
+      ggplot2::aes(
+        color = comparison_role, shape = Outlier,
+        tooltip = tooltip, data_id = sample
+      ),
+      size = 3, alpha = 0.85
+    )
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "fill:orange;stroke:black;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   p +
     ggplot2::geom_point(
-      ggplot2::aes(color = comparison_role, shape = Outlier), size = 3, alpha = 0.85) +
+      ggplot2::aes(color = comparison_role, shape = Outlier),
+      size = 3, alpha = 0.85
+    ) +
     ggrepel::geom_text_repel(
       ggplot2::aes(label = unit, color = comparison_role),
-      size = 3, max.overlaps = 20, show.legend = FALSE)
+      size = 3, max.overlaps = 20, show.legend = FALSE
+    )
 }
 
 S7::method(go_barplot, scitargets_dea) <- function(x,
@@ -436,8 +457,10 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
     ))
   }
 
-  cap <- paste0("background: ", length(res$background_genes),
-                " ; foreground: ", length(res$foreground_genes))
+  cap <- paste0(
+    "background: ", length(res$background_genes),
+    " ; foreground: ", length(res$foreground_genes)
+  )
   title <- paste0("GO:", onto_label, " enrichment in ", direction, "-regulated genes")
 
   # ggiraph: per-bar tooltip with the term, raw + adjusted p-value, enrichment
@@ -449,21 +472,28 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
       "\nraw p-value: ", signif(pv, 3),
       "\nadj. p-value: ", signif(gop$adjpval, 3),
       "\nEnrichment: ", gop$Enrichment,
-      "\nForeground genes: ", gop$Genes)
+      "\nForeground genes: ", gop$Genes
+    )
     p <- ggplot2::ggplot(gop, ggplot2::aes(x = Term_wrapped, y = neg_log10_adjpval)) +
       ggiraph::geom_col_interactive(
-        ggplot2::aes(tooltip = tooltip, data_id = GO.ID), fill = "cornflowerblue") +
+        ggplot2::aes(tooltip = tooltip, data_id = GO.ID),
+        fill = "cornflowerblue"
+      ) +
       ggplot2::coord_flip() +
       ggplot2::labs(x = "", y = "- log10 adjusted P-value", title = title, caption = cap) +
       ggplot2::theme(
         axis.text.y = ggplot2::element_text(size = 12),
-        panel.background = ggplot2::element_blank())
+        panel.background = ggplot2::element_blank()
+      )
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "fill:orange;stroke:black;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   p <- ggplot2::ggplot(
@@ -707,7 +737,6 @@ resolve_group_comparisons <- function(group_levels, groups = NA) {
 }
 
 
-
 #' Enumerate clinical-group comparisons to run
 #'
 #' Returns one row per (cluster x group-pair) comparison that has both groups
@@ -813,15 +842,65 @@ run_deseq2 <- function(counts, col_data, group1, group2,
                        shrinkage = TRUE) {
   test <- match.arg(test)
   design_formula <- stats::as.formula(design)
+
+  # Check for reduced formula if LRT is used
+  if (identical(test, "LRT")) {
+    reduced_formula <- stats::as.formula(reduced)
+    full_terms <- attr(stats::terms(design_formula), "term.labels")
+    reduced_terms <- attr(stats::terms(reduced_formula), "term.labels")
+
+    if (!"group" %in% full_terms) {
+      stop(
+        "For pb_test = 'LRT', the full design must contain `group` as a main term.",
+        call. = FALSE
+      )
+    }
+
+    if ("group" %in% reduced_terms) {
+      stop(
+        "For pb_test = 'LRT', the reduced formula must not contain `group`.",
+        call. = FALSE
+      )
+    }
+
+    non_group_terms <- setdiff(full_terms, "group")
+    missing_reduced_terms <- setdiff(non_group_terms, reduced_terms)
+    if (length(missing_reduced_terms) > 0L) {
+      stop(
+        "For pb_test = 'LRT', the reduced formula should retain all non-group terms ",
+        "from the full design. Missing from reduced formula: ",
+        paste(missing_reduced_terms, collapse = ", "),
+        ". For example, if design = '~ batch + sex + group', use reduced = '~ batch + sex'.",
+        call. = FALSE
+      )
+    }
+
+    group_interaction_terms <- grep("(^|:)group(:|$)", full_terms, value = TRUE)
+    if (length(group_interaction_terms) > 0L) {
+      stop(
+        "pb_test = 'LRT' with group interactions is not supported in this pairwise ",
+        "GO/GSEA pipeline because the LRT p-value is not a simple signed group1-vs-group2 test. ",
+        "Problematic term(s): ",
+        paste(group_interaction_terms, collapse = ", "),
+        call. = FALSE
+      )
+    }
+
+    message("LRT test was set for the pseudobulk DE analysis. Scitargets will try to compute GO and GSEA enrichment but be aware that it may over-interpret the enrichment! We recommand to use the default 'Wald' test.")
+  }
+
   if (!"group" %in% all.vars(design_formula)) {
     stop("The DESeq2 design formula must reference the `group` term (got '",
-         design, "').", call. = FALSE)
+      design, "').",
+      call. = FALSE
+    )
   }
   low_count_filter <- as.integer(low_count_filter)
   if (length(low_count_filter) != 2L || anyNA(low_count_filter) ||
-      any(low_count_filter < 0L)) {
+    any(low_count_filter < 0L)) {
     stop("low_count_filter must be two non-negative integers c(count, n_samples).",
-         call. = FALSE)
+      call. = FALSE
+    )
   }
 
   col_data <- as.data.frame(col_data)
@@ -842,8 +921,10 @@ run_deseq2 <- function(counts, col_data, group1, group2,
   n_postfilter <- nrow(dds)
 
   if (identical(test, "LRT")) {
-    dds <- DESeq2::DESeq(dds, test = "LRT",
-                         reduced = stats::as.formula(reduced), quiet = TRUE)
+    dds <- DESeq2::DESeq(dds,
+      test = "LRT",
+      reduced = stats::as.formula(reduced), quiet = TRUE
+    )
   } else {
     dds <- DESeq2::DESeq(dds, test = "Wald", quiet = TRUE)
   }
@@ -866,8 +947,10 @@ run_deseq2 <- function(counts, col_data, group1, group2,
   if (isTRUE(shrinkage)) {
     shrink <- .dea_lfc_shrink(dds, s1, s2)
   } else {
-    shrink <- list(lfc = stats::setNames(rep(NA_real_, nrow(dds)), rownames(dds)),
-                   method = "disabled")
+    shrink <- list(
+      lfc = stats::setNames(rep(NA_real_, nrow(dds)), rownames(dds)),
+      method = "disabled"
+    )
   }
   out$avg_log2FC_shrink <- unname(shrink$lfc[out$Gene])
 
@@ -906,8 +989,9 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #'   thresholds for the single-cell and pseudobulk levels. `min_replicates`
 #'   (pseudobulk only; default 3) is the minimum number of biological replicates
 #'   (`pseudobulk_unit`) required per group.
-#' @param pb_test Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk
-#'   level only.
+#' @param pb_test Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk level only.
+#'   Use `"Wald"` for the standard pairwise group1-vs-group2 analysis and for downstream signed GO/GSEA.
+#'   "LRT"` is intended for testing the contribution of `group` relative to a reduced model; when using `"LRT"`, `pb_reduced` should retain all non-group covariates from `pb_design`.
 #' @param pb_design Pseudobulk DESeq2 design as a length-1 character formula
 #'   (default "~ group"), passed through [stats::as.formula()] to DESeq2. Must
 #'   reference the `group` term so the group1-vs-group2 contrast can be extracted.
@@ -990,8 +1074,10 @@ run_dea <- function(seurat_obj,
   pb_test <- match.arg(pb_test)
   # Per-level adjusted-p cutoffs: drive the volcano horizontal cutoff line and
   # the GO foreground-gene selection for that level (stored on the object).
-  padj_cutoffs <- list(single_cell = padj_cutoff_single_cell,
-                       pseudobulk  = padj_cutoff_pseudobulk)
+  padj_cutoffs <- list(
+    single_cell = padj_cutoff_single_cell,
+    pseudobulk = padj_cutoff_pseudobulk
+  )
   levels_req <- if (identical(level, "both")) c("single_cell", "pseudobulk") else level
   params <- .default_go_params(go_params)
   gparams <- .default_gsea_params(gsea_params)
@@ -1081,11 +1167,18 @@ run_dea <- function(seurat_obj,
     pca$pseudobulk <- tryCatch(
       .de_pseudobulk_pca(
         seurat_obj, group_by, if (has_cluster) cluster_by else character(),
-        cluster, group1, group2, pseudobulk_unit = pseudobulk_unit,
+        cluster, group1, group2,
+        pseudobulk_unit = pseudobulk_unit,
         min_cells_per_sample = min_cells_per_sample,
-        n_top_genes = pca_n_top_genes, outlier_conf = pca_outlier_conf),
-      error = function(e) list(status = "not_computed",
-                               reason = paste("PCA error:", conditionMessage(e))))
+        n_top_genes = pca_n_top_genes, outlier_conf = pca_outlier_conf
+      ),
+      error = function(e) {
+        list(
+          status = "not_computed",
+          reason = paste("PCA error:", conditionMessage(e))
+        )
+      }
+    )
   }
 
   # Outlier replicates (by unit) to drop from the pseudobulk DE when requested.
@@ -1093,7 +1186,7 @@ run_dea <- function(seurat_obj,
   # comparison's aggregation). The @pca view keeps every sample regardless.
   outlier_units <- character()
   if (isTRUE(pb_remove_outliers) &&
-      identical(pca$pseudobulk$status, "computed")) {
+    identical(pca$pseudobulk$status, "computed")) {
     co <- pca$pseudobulk$coords
     outlier_units <- unique(co$unit[co$outlier])
   }
@@ -1101,8 +1194,8 @@ run_dea <- function(seurat_obj,
 
   # Guard: both groups must have enough cells overall.
   if (length(grp_n) < 2L ||
-      any(is.na(grp_n[c(group1, ref)])) ||
-      any(grp_n[c(group1, ref)] < min_cells_per_group)) {
+    any(is.na(grp_n[c(group1, ref)])) ||
+    any(grp_n[c(group1, ref)] < min_cells_per_group)) {
     reason <- paste0(
       "Not computed: at least one group has fewer than ",
       min_cells_per_group, " cells in cluster '", cluster, "'."
@@ -1155,22 +1248,26 @@ run_dea <- function(seurat_obj,
           # No subsetting: FindMarkers selects the two groups via group.by +
           # ident on the FULL (PrepSCTFindMarkers'd, upstream) object, so the SCT
           # model state stays intact. `recorrect_umi` (run_dea arg) is forwarded.
-          .de_single_cell(seurat_obj, ".dea_group", ident.1 = group1, ident.2 = ref,
-                          assay = assay_sc, seed = seed,
-                          recorrect_umi = recorrect_umi)
+          .de_single_cell(seurat_obj, ".dea_group",
+            ident.1 = group1, ident.2 = ref,
+            assay = assay_sc, seed = seed,
+            recorrect_umi = recorrect_umi
+          )
         } else {
           # PseudobulkExpression aggregates by (unit x .dea_group) and drops the
           # NA (non-comparison) cells, so it runs on the full object directly.
-          .de_pseudobulk(seurat_obj, group1 = group1, group2 = group2,
-                         pseudobulk_unit = pseudobulk_unit,
-                         min_replicates = min_replicates,
-                         min_cells_per_sample = min_cells_per_sample,
-                         test = pb_test, design = pb_design,
-                         reduced = pb_reduced,
-                         low_count_filter = pb_low_count_filter,
-                         covariate_key = pb_covariate_key,
-                         shrinkage = pb_lfc_shrink,
-                         drop_units = outlier_units)
+          .de_pseudobulk(seurat_obj,
+            group1 = group1, group2 = group2,
+            pseudobulk_unit = pseudobulk_unit,
+            min_replicates = min_replicates,
+            min_cells_per_sample = min_cells_per_sample,
+            test = pb_test, design = pb_design,
+            reduced = pb_reduced,
+            low_count_filter = pb_low_count_filter,
+            covariate_key = pb_covariate_key,
+            shrinkage = pb_lfc_shrink,
+            drop_units = outlier_units
+          )
         }
       },
       error = function(e) .dea_failed(conditionMessage(e))
@@ -1189,8 +1286,10 @@ run_dea <- function(seurat_obj,
 
     de[[lv]] <- markers
     if (identical(lv, "pseudobulk")) {
-      .dea_message_shrink(comparison_name, attr(markers, "lfcShrink_method"),
-                          pb_lfc_shrink)
+      .dea_message_shrink(
+        comparison_name, attr(markers, "lfcShrink_method"),
+        pb_lfc_shrink
+      )
     }
     # Task 6: when DE genes exist, launch both topGO GO and GSEA.
     if (isTRUE(run_go)) {
@@ -1246,7 +1345,6 @@ run_dea <- function(seurat_obj,
 }
 
 
-
 #' Fetch MSigDB gene-set collections for GSEA
 #'
 #' @param collections Character vector of collection labels. Supported:
@@ -1265,8 +1363,10 @@ get_msigdbr_pathways <- function(collections = names(.MSIGDB_COLLECTION_MAP),
     df <- if (is.null(spec$subcollection)) {
       msigdbr::msigdbr(species = species, collection = spec$collection)
     } else {
-      msigdbr::msigdbr(species = species, collection = spec$collection,
-                       subcollection = spec$subcollection)
+      msigdbr::msigdbr(
+        species = species, collection = spec$collection,
+        subcollection = spec$subcollection
+      )
     }
     out[[label]] <- split(df$gene_symbol, df$gs_name)
   }
@@ -1276,8 +1376,10 @@ get_msigdbr_pathways <- function(collections = names(.MSIGDB_COLLECTION_MAP),
 # Run fgsea for a single collection.
 compute_gsea_collection <- function(ranks, pathways, params, collection) {
   if (length(ranks) < 2L || length(pathways) == 0L) {
-    return(.empty_gsea_result("Not enough ranked genes or pathways for GSEA.",
-                              collection, ranks, params))
+    return(.empty_gsea_result(
+      "Not enough ranked genes or pathways for GSEA.",
+      collection, ranks, params
+    ))
   }
 
   fg <- tryCatch(
@@ -1296,8 +1398,10 @@ compute_gsea_collection <- function(ranks, pathways, params, collection) {
   )
 
   if (is.null(fg) || nrow(fg) == 0L) {
-    return(.empty_gsea_result("fgsea returned no enriched gene sets.",
-                              collection, ranks, params))
+    return(.empty_gsea_result(
+      "fgsea returned no enriched gene sets.",
+      collection, ranks, params
+    ))
   }
 
   fg <- as.data.frame(fg)
@@ -1366,9 +1470,11 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
                                                      level = NULL,
                                                      top_n = NULL,
                                                      padj_cutoff = NULL,
-                                                     metric = c("signed_nlog10_padj",
-                                                                "signed_nlog10_pval",
-                                                                "signed_pval"),
+                                                     metric = c(
+                                                       "signed_nlog10_padj",
+                                                       "signed_nlog10_pval",
+                                                       "signed_pval"
+                                                     ),
                                                      interactive = FALSE,
                                                      width_svg = 10,
                                                      height_svg = 7,
@@ -1399,14 +1505,12 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
 
   pv <- pmax(sig$pval, .Machine$double.xmin)
   pa <- pmax(sig$padj, .Machine$double.xmin)
-  sig$bar <- switch(
-    metric,
+  sig$bar <- switch(metric,
     signed_nlog10_pval = sign(sig$NES) * -log10(pv),
     signed_nlog10_padj = sign(sig$NES) * -log10(pa),
     signed_pval = sign(sig$NES) * sig$pval
   )
-  axis_label <- switch(
-    metric,
+  axis_label <- switch(metric,
     signed_nlog10_pval = "sign(NES) x -log10(p-value)",
     signed_nlog10_padj = "sign(NES) x -log10(adj. p-value)",
     signed_pval = "sign(NES) x p-value"
@@ -1433,7 +1537,8 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
     "\nNES: ", sprintf("%.2f", sig$NES),
     "\np-value: ", signif(sig$pval, 3),
     "\nadj. p-value: ", signif(sig$padj, 3),
-    "\nLeading edge: ", le)
+    "\nLeading edge: ", le
+  )
 
   base <- ggplot2::ggplot(
     sig,
@@ -1455,13 +1560,17 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
   # genes. ggplot2 (default): static bars with the NES printed on each bar.
   if (isTRUE(interactive)) {
     p <- base + ggiraph::geom_col_interactive(
-      ggplot2::aes(tooltip = tooltip, data_id = pathway))
+      ggplot2::aes(tooltip = tooltip, data_id = pathway)
+    )
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "fill:orange;stroke:black;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base +
@@ -1506,31 +1615,40 @@ composition_plot <- function(meta,
     "Patient: ", comp$patient, "\nGroup: ", comp$group,
     "\nState: ", comp$state,
     "\nCells: ", comp$n_cells, " / ", comp$n_total,
-    "\nProportion: ", sprintf("%.1f%%", 100 * comp$proportion))
+    "\nProportion: ", sprintf("%.1f%%", 100 * comp$proportion)
+  )
   # order patients by clinical group, then id
   comp$patient <- factor(
     comp$patient,
-    levels = unique(comp$patient[order(comp$group, comp$patient)]))
+    levels = unique(comp$patient[order(comp$group, comp$patient)])
+  )
 
   base <- ggplot2::ggplot(comp, ggplot2::aes(x = patient, y = proportion, fill = state)) +
     ggplot2::facet_grid(~group, scales = "free_x", space = "free_x") +
-    ggplot2::labs(x = NULL, y = "Proportion of cells", fill = "State",
-                  title = "Patient cell-state composition",
-                  subtitle = sprintf("state: %s | grouped by %s", state_col, group_col)) +
+    ggplot2::labs(
+      x = NULL, y = "Proportion of cells", fill = "State",
+      title = "Patient cell-state composition",
+      subtitle = sprintf("state: %s | grouped by %s", state_col, group_col)
+    ) +
     ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
-      legend.position = "bottom")
+      legend.position = "bottom"
+    )
 
   if (isTRUE(interactive)) {
     p <- base + ggiraph::geom_col_interactive(
-      ggplot2::aes(tooltip = tooltip, data_id = interaction(patient, state)))
+      ggplot2::aes(tooltip = tooltip, data_id = interaction(patient, state))
+    )
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "stroke:black;stroke-width:1px;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base + ggplot2::geom_col()
@@ -1566,14 +1684,17 @@ composition_boxplot <- function(meta,
   comp$tooltip <- paste0(
     "Patient: ", comp$patient, "\nGroup: ", comp$group,
     "\nState: ", comp$state,
-    "\nProportion: ", sprintf("%.1f%%", 100 * comp$proportion))
+    "\nProportion: ", sprintf("%.1f%%", 100 * comp$proportion)
+  )
 
   base <- ggplot2::ggplot(comp, ggplot2::aes(x = group, y = proportion)) +
     ggplot2::geom_boxplot(ggplot2::aes(fill = group), outlier.shape = NA, alpha = 0.5) +
     ggplot2::facet_wrap(~state, scales = "free_y") +
-    ggplot2::labs(x = NULL, y = "Proportion of cells", fill = "Group",
-                  title = "Cell-state proportion by clinical group",
-                  subtitle = sprintf("state: %s | grouped by %s", state_col, group_col)) +
+    ggplot2::labs(
+      x = NULL, y = "Proportion of cells", fill = "Group",
+      title = "Cell-state proportion by clinical group",
+      subtitle = sprintf("state: %s | grouped by %s", state_col, group_col)
+    ) +
     ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(legend.position = "bottom")
 
@@ -1581,13 +1702,17 @@ composition_boxplot <- function(meta,
   if (isTRUE(interactive)) {
     p <- base + ggiraph::geom_point_interactive(
       ggplot2::aes(tooltip = tooltip, data_id = patient),
-      position = jit, alpha = 0.8, size = 1.8)
+      position = jit, alpha = 0.8, size = 1.8
+    )
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "fill:orange;stroke:black;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base + ggplot2::geom_jitter(position = jit, alpha = 0.7, size = 1.8)
@@ -1617,23 +1742,34 @@ dea_upset_plot <- function(x,
   direction <- match.arg(direction)
   if (!requireNamespace("ggupset", quietly = TRUE)) {
     stop("Package 'ggupset' is required for UpSet plots; install it with ",
-         "install.packages('ggupset').", call. = FALSE)
+      "install.packages('ggupset').",
+      call. = FALSE
+    )
   }
-  df <- .dea_upset_data(x, direction = direction, level = level,
-                        comparisons = comparisons, padj_cutoff = padj_cutoff)
+  df <- .dea_upset_data(x,
+    direction = direction, level = level,
+    comparisons = comparisons, padj_cutoff = padj_cutoff
+  )
   if (nrow(df) == 0L) {
     return(.no_result_plot("No differentially expressed genes in the selected comparisons."))
   }
   ttl <- switch(direction,
-                up = "up-regulated", down = "down-regulated", both = "all")
+    up = "up-regulated",
+    down = "down-regulated",
+    both = "all"
+  )
   ggplot2::ggplot(df, ggplot2::aes(x = comparisons)) +
     ggplot2::geom_bar(fill = "steelblue") +
-    ggplot2::geom_text(stat = "count",
-                       ggplot2::aes(label = ggplot2::after_stat(count)),
-                       vjust = -0.3, size = 3) +
+    ggplot2::geom_text(
+      stat = "count",
+      ggplot2::aes(label = ggplot2::after_stat(count)),
+      vjust = -0.3, size = 3
+    ) +
     ggupset::scale_x_upset() +
-    ggplot2::labs(x = NULL, y = "Number of DE genes",
-                  title = sprintf("DE-gene overlap across comparisons (%s)", ttl)) +
+    ggplot2::labs(
+      x = NULL, y = "Number of DE genes",
+      title = sprintf("DE-gene overlap across comparisons (%s)", ttl)
+    ) +
     ggplot2::theme_bw(base_size = 12)
 }
 
@@ -1676,12 +1812,14 @@ dea_upset_lines <- function(x,
                             heading = "DE-gene overlap (UpSet)",
                             fig_id = "upset") {
   directions <- match.arg(directions, several.ok = TRUE)
-  h  <- paste(rep("#", heading_level), collapse = "")
+  h <- paste(rep("#", heading_level), collapse = "")
   h2 <- paste(rep("#", heading_level + 1L), collapse = "")
   dlab <- c(down = "Down-regulated", up = "Up-regulated", both = "All DE genes")
   lit <- function(v) paste(deparse(v), collapse = " ")
   getd <- function(fd, key, default) {
-    if (is.null(fd)) return(default)
+    if (is.null(fd)) {
+      return(default)
+    }
     v <- tryCatch(fd[[key]], error = function(e) NULL)
     if (is.null(v) || is.na(v)) default else v
   }
@@ -1689,9 +1827,11 @@ dea_upset_lines <- function(x,
   lines <- c(paste(h, heading), "")
   for (dir in directions) {
     lines <- c(lines, paste(h2, dlab[[dir]]), "")
-    has_de <- nrow(.dea_upset_data(x, direction = dir, level = level,
-                                   comparisons = comparisons,
-                                   padj_cutoff = padj_cutoff)) > 0L
+    has_de <- nrow(.dea_upset_data(x,
+      direction = dir, level = level,
+      comparisons = comparisons,
+      padj_cutoff = padj_cutoff
+    )) > 0L
     if (!has_de) {
       lines <- c(lines, "No DE genes were found in the comparisons to plot.", "")
       next
@@ -1705,10 +1845,13 @@ dea_upset_lines <- function(x,
       sprintf("#| fig-width: %s", getd(fd, "width", 8)),
       sprintf("#| fig-height: %s", getd(fd, "height", 6)),
       sprintf("#| label: fig-%s-%s", .dea_sanitize_id(fig_id, dir), dir),
-      sprintf("dea_upset_plot(%s, direction = %s, level = %s, comparisons = %s, padj_cutoff = %s)",
-              obj_name, shQuote(dir), lit(level), lit(comparisons), lit(padj_cutoff)),
+      sprintf(
+        "dea_upset_plot(%s, direction = %s, level = %s, comparisons = %s, padj_cutoff = %s)",
+        obj_name, shQuote(dir), lit(level), lit(comparisons), lit(padj_cutoff)
+      ),
       "```",
-      "")
+      ""
+    )
   }
   lines
 }
@@ -1744,13 +1887,17 @@ dea_testability_heatmap <- function(x,
     return(.no_result_plot("No comparisons available for the testability heatmap."))
   }
   lab <- switch(metric,
-                testable = "Testable", patients = "Min replicates/group",
-                cells = "Min cells/group", outliers = "Outliers")
+    testable = "Testable",
+    patients = "Min replicates/group",
+    cells = "Min cells/group",
+    outliers = "Outliers"
+  )
   ttl <- switch(metric,
-                testable = "Testable: cell state x comparison",
-                patients = "Patients per group: cell state x comparison",
-                cells = "Cells per group: cell state x comparison",
-                outliers = "Outliers removed: cell state x comparison")
+    testable = "Testable: cell state x comparison",
+    patients = "Patients per group: cell state x comparison",
+    cells = "Cells per group: cell state x comparison",
+    outliers = "Outliers removed: cell state x comparison"
+  )
   # patients/cells/testable have a before/after-removal meaning; outliers does not.
   stage <- if (metric == "outliers") {
     "flagged outlier replicates removed from DESeq2"
@@ -1764,29 +1911,39 @@ dea_testability_heatmap <- function(x,
   } else {
     ifelse(is.na(df$value), "NA", format(df$value))
   }
-  df$tooltip <- paste0("Cell state: ", df$cluster, "\nComparison: ", df$comparison,
-                       "\n", lab, ": ", df$label)
+  df$tooltip <- paste0(
+    "Cell state: ", df$cluster, "\nComparison: ", df$comparison,
+    "\n", lab, ": ", df$label
+  )
 
   base <- ggplot2::ggplot(df, ggplot2::aes(x = comparison, y = cluster, fill = value)) +
     ggplot2::scale_fill_gradient(low = "grey90", high = "#2c7fb8", na.value = "white") +
-    ggplot2::labs(x = NULL, y = NULL, fill = lab, title = ttl,
-                  subtitle = sprintf("level: %s | %s", level, stage)) +
+    ggplot2::labs(
+      x = NULL, y = NULL, fill = lab, title = ttl,
+      subtitle = sprintf("level: %s | %s", level, stage)
+    ) +
     ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
-                   panel.grid = ggplot2::element_blank())
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      panel.grid = ggplot2::element_blank()
+    )
 
   if (isTRUE(interactive)) {
     p <- base +
       ggiraph::geom_tile_interactive(
         ggplot2::aes(tooltip = tooltip, data_id = interaction(cluster, comparison)),
-        color = "white") +
+        color = "white"
+      ) +
       ggplot2::geom_text(ggplot2::aes(label = label), size = 3)
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "stroke:black;stroke-width:1px;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base +
@@ -1824,30 +1981,38 @@ dea_testability_lines <- function(x,
                                   heading = "Testability summary",
                                   fig_id = "testability") {
   metrics <- match.arg(metrics, several.ok = TRUE)
-  h  <- .dea_h(heading_level)
+  h <- .dea_h(heading_level)
   h2 <- .dea_h(heading_level + 1L)
   h3 <- .dea_h(heading_level + 2L)
-  mlab <- c(testable = "Testable state x comparison",
-            patients = "Patients per group",
-            cells = "Cells per group")
+  mlab <- c(
+    testable = "Testable state x comparison",
+    patients = "Patients per group",
+    cells = "Cells per group"
+  )
   ibool <- if (isTRUE(interactive)) "TRUE" else "FALSE"
   getd <- function(fd, key, default) {
-    if (is.null(fd)) return(default)
+    if (is.null(fd)) {
+      return(default)
+    }
     v <- tryCatch(fd[[key]], error = function(e) NULL)
     if (is.null(v) || is.na(v)) default else v
   }
   chunk <- function(m, after_removal, fd, tag) {
-    c("```{r}",
+    c(
+      "```{r}",
       "#| message: false",
       "#| warning: false",
       sprintf("#| fig-width: %s", getd(fd, "width", 8)),
       sprintf("#| fig-height: %s", getd(fd, "height", 6)),
       sprintf("#| label: fig-%s", .dea_sanitize_id(fig_id, m, tag)),
-      sprintf("dea_testability_heatmap(%s, metric = %s, level = %s, after_removal = %s, interactive = %s)",
-              obj_name, shQuote(m), shQuote(level),
-              if (isTRUE(after_removal)) "TRUE" else "FALSE", ibool),
+      sprintf(
+        "dea_testability_heatmap(%s, metric = %s, level = %s, after_removal = %s, interactive = %s)",
+        obj_name, shQuote(m), shQuote(level),
+        if (isTRUE(after_removal)) "TRUE" else "FALSE", ibool
+      ),
       "```",
-      "")
+      ""
+    )
   }
 
   has_out <- .dea_any_outliers(x, level = level)
@@ -1855,16 +2020,19 @@ dea_testability_lines <- function(x,
   if (has_out) {
     lines <- c(lines, sprintf(
       "_Outliers were detected; %s metrics are shown before and after their removal (the post-removal view matches what DESeq2 used)._",
-      paste(intersect(metrics, c("patients", "cells", "testable")), collapse = " / ")), "")
+      paste(intersect(metrics, c("patients", "cells", "testable")), collapse = " / ")
+    ), "")
   }
   for (m in metrics) {
     fd <- if (is.null(fig_dims)) NULL else fig_dims[[m]]
     lines <- c(lines, paste(h2, mlab[[m]]), "")
     if (has_out) {
-      lines <- c(lines, "::: {.panel-tabset}", "",
-                 paste(h3, "Before outlier removal"), "", chunk(m, FALSE, fd, "before"),
-                 paste(h3, "After outlier removal"), "", chunk(m, TRUE, fd, "after"),
-                 ":::", "")
+      lines <- c(
+        lines, "::: {.panel-tabset}", "",
+        paste(h3, "Before outlier removal"), "", chunk(m, FALSE, fd, "before"),
+        paste(h3, "After outlier removal"), "", chunk(m, TRUE, fd, "after"),
+        ":::", ""
+      )
     } else {
       lines <- c(lines, chunk(m, TRUE, fd, "after"))
     }
@@ -1903,38 +2071,51 @@ dea_gsea_yield_heatmap <- function(x,
                                    interactive = FALSE,
                                    width_svg = 10,
                                    height_svg = 6) {
-  df <- .dea_gsea_yield_data(x, collection = collection, level = level,
-                             padj_cutoff = padj_cutoff)
+  df <- .dea_gsea_yield_data(x,
+    collection = collection, level = level,
+    padj_cutoff = padj_cutoff
+  )
   if (is.null(df) || nrow(df) == 0L || !any(!is.na(df$value))) {
     return(.no_result_plot(sprintf(
-      "No GSEA results for collection '%s' (%s level).", collection, level)))
+      "No GSEA results for collection '%s' (%s level).", collection, level
+    )))
   }
   cutoff_disp <- if (is.null(padj_cutoff)) "comparison cutoff" else format(padj_cutoff)
   df$label <- ifelse(is.na(df$value), "NA", format(df$value))
-  df$tooltip <- paste0("Cell state: ", df$cluster, "\nComparison: ", df$comparison,
-                       "\nEnriched gene sets: ", df$label)
+  df$tooltip <- paste0(
+    "Cell state: ", df$cluster, "\nComparison: ", df$comparison,
+    "\nEnriched gene sets: ", df$label
+  )
 
   base <- ggplot2::ggplot(df, ggplot2::aes(x = comparison, y = cluster, fill = value)) +
     ggplot2::scale_fill_gradient(low = "grey90", high = "#238b45", na.value = "white") +
-    ggplot2::labs(x = NULL, y = NULL, fill = "Gene sets",
-                  title = sprintf("Significantly enriched gene sets: %s", collection),
-                  subtitle = sprintf("level: %s | padj < %s", level, cutoff_disp)) +
+    ggplot2::labs(
+      x = NULL, y = NULL, fill = "Gene sets",
+      title = sprintf("Significantly enriched gene sets: %s", collection),
+      subtitle = sprintf("level: %s | padj < %s", level, cutoff_disp)
+    ) +
     ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
-                   panel.grid = ggplot2::element_blank())
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      panel.grid = ggplot2::element_blank()
+    )
 
   if (isTRUE(interactive)) {
     p <- base +
       ggiraph::geom_tile_interactive(
         ggplot2::aes(tooltip = tooltip, data_id = interaction(cluster, comparison)),
-        color = "white") +
+        color = "white"
+      ) +
       ggplot2::geom_text(ggplot2::aes(label = label), size = 3)
     return(ggiraph::girafe(
       ggobj = p, width_svg = width_svg, height_svg = height_svg,
       options = list(
         ggiraph::opts_hover(css = "stroke:black;stroke-width:1px;"),
         ggiraph::opts_tooltip(
-          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"))))
+          css = "background-color:white;color:black;padding:6px;border:1px solid grey;"
+        )
+      )
+    ))
   }
 
   base +
@@ -1980,12 +2161,14 @@ dea_gsea_yield_lines <- function(x,
                                  heading_level = 2L,
                                  heading = "GSEA yield (enriched gene sets)",
                                  fig_id = "gsea-yield") {
-  h  <- paste(rep("#", heading_level), collapse = "")
+  h <- paste(rep("#", heading_level), collapse = "")
   h2 <- paste(rep("#", heading_level + 1L), collapse = "")
   ibool <- if (isTRUE(interactive)) "TRUE" else "FALSE"
   lit <- function(v) paste(deparse(v), collapse = " ")
   getd <- function(fd, key, default) {
-    if (is.null(fd)) return(default)
+    if (is.null(fd)) {
+      return(default)
+    }
     v <- tryCatch(fd[[key]], error = function(e) NULL)
     if (is.null(v) || is.na(v)) default else v
   }
@@ -1998,7 +2181,9 @@ dea_gsea_yield_lines <- function(x,
   for (col in cols) {
     lines <- c(lines, paste(h2, col), "")
     has_yield <- any(!is.na(.dea_gsea_yield_data(
-      x, collection = col, level = level, padj_cutoff = padj_cutoff)$value))
+      x,
+      collection = col, level = level, padj_cutoff = padj_cutoff
+    )$value))
     if (!has_yield) {
       lines <- c(lines, "No GSEA results were found in the comparisons to plot.", "")
       next
@@ -2013,10 +2198,13 @@ dea_gsea_yield_lines <- function(x,
       sprintf("#| fig-width: %s", getd(fd, "width", 8)),
       sprintf("#| fig-height: %s", getd(fd, "height", 6)),
       sprintf("#| label: fig-%s", .dea_sanitize_id(fig_id, level, col)),
-      sprintf("dea_gsea_yield_heatmap(%s, collection = %s, level = %s, padj_cutoff = %s, interactive = %s)",
-              obj_name, shQuote(col), shQuote(level), lit(padj_cutoff), ibool),
+      sprintf(
+        "dea_gsea_yield_heatmap(%s, collection = %s, level = %s, padj_cutoff = %s, interactive = %s)",
+        obj_name, shQuote(col), shQuote(level), lit(padj_cutoff), ibool
+      ),
       "```",
-      "")
+      ""
+    )
   }
   lines
 }
@@ -2048,10 +2236,13 @@ composition_lines <- function(meta_name = "clinical_meta",
                               fig_id = "composition") {
   h <- paste(rep("#", heading_level), collapse = "")
   q <- function(s) shQuote(s)
-  cargs <- sprintf("%s, state_col = %s, group_col = %s, patient_col = %s, interactive = %s",
-                   meta_name, q(state_col), q(group_col), q(patient_col),
-                   if (isTRUE(interactive)) "TRUE" else "FALSE")
-  c(paste(h, heading), "",
+  cargs <- sprintf(
+    "%s, state_col = %s, group_col = %s, patient_col = %s, interactive = %s",
+    meta_name, q(state_col), q(group_col), q(patient_col),
+    if (isTRUE(interactive)) "TRUE" else "FALSE"
+  )
+  c(
+    paste(h, heading), "",
     "```{r}", "#| message: false", "#| warning: false", "#| column: screen-outset",
     sprintf("#| label: fig-%s-bar", .dea_sanitize_id(fig_id)),
     "#| fig-cap: \"Patient cell-state composition (stacked proportions).\"",
@@ -2061,7 +2252,8 @@ composition_lines <- function(meta_name = "clinical_meta",
     sprintf("#| label: fig-%s-box", .dea_sanitize_id(fig_id)),
     "#| fig-cap: \"Cell-state proportion by clinical group.\"",
     sprintf("composition_boxplot(%s)", cargs),
-    "```", "")
+    "```", ""
+  )
 }
 
 #' Heatmap of the top DE genes across all cells (Seurat)
@@ -2142,11 +2334,17 @@ dea_top_de_lines <- function(x,
                              heading_level = 2L,
                              heading = "Top DE-gene heatmap",
                              fig_id = "topde") {
-  if (!inherits(seurat_obj, "Seurat")) return(character())
+  if (!inherits(seurat_obj, "Seurat")) {
+    return(character())
+  }
   n_top <- chunk_opts[["n_top"]] %||% 20L
-  genes <- .dea_top_de_genes(x, level = level, n_top = n_top, padj_cutoff = padj_cutoff,
-                             clusters_to_show = clusters_to_show, groups_to_show = groups_to_show)
-  if (length(genes) == 0L) return(character())
+  genes <- .dea_top_de_genes(x,
+    level = level, n_top = n_top, padj_cutoff = padj_cutoff,
+    clusters_to_show = clusters_to_show, groups_to_show = groups_to_show
+  )
+  if (length(genes) == 0L) {
+    return(character())
+  }
 
   h <- paste(rep("#", heading_level), collapse = "")
   lit <- function(v) paste(deparse(v), collapse = " ")
@@ -2155,14 +2353,20 @@ dea_top_de_lines <- function(x,
     default_label = sprintf("fig-%s", .dea_sanitize_id(fig_id, level %||% "")),
     default_caption = sprintf(
       "Top DE genes (top %d per shown comparison by |log2FC|, %s level) across all cells.",
-      n_top, level %||% "default"))
-  c(paste(h, heading), "",
+      n_top, level %||% "default"
+    )
+  )
+  c(
+    paste(h, heading), "",
     "```{r}",
     opts,
-    sprintf("top_de_heatmap(%s, features = %s, group_by = %s)",
-            seurat_name, lit(genes), lit(group_by)),
+    sprintf(
+      "top_de_heatmap(%s, features = %s, group_by = %s)",
+      seurat_name, lit(genes), lit(group_by)
+    ),
     "```",
-    "")
+    ""
+  )
 }
 
 #' Build Quarto child lines for one [scitargets_dea] comparison
@@ -2232,9 +2436,11 @@ dea_report_lines <- function(x,
                              groups_to_show = NA,
                              available_clusters = NULL,
                              available_groups = NULL,
-                             gsea_metric = c("signed_nlog10_padj",
-                                             "signed_nlog10_pval",
-                                             "signed_pval")) {
+                             gsea_metric = c(
+                               "signed_nlog10_padj",
+                               "signed_nlog10_pval",
+                               "signed_pval"
+                             )) {
   stopifnot(is_scitargets_dea(x))
   gsea_metric <- match.arg(gsea_metric)
   # `interactive_plots`: NA (default) -> every plot is a static ggplot2; otherwise
@@ -2242,17 +2448,23 @@ dea_report_lines <- function(x,
   # to render interactively (ggiraph). Validate up front.
   interactive_plots <- .dea_interactive_set(interactive_plots)
   h <- paste(rep("#", heading_level), collapse = "")
-  title <- sprintf("%s %s versus %s in %s %s",
-                   h, x@group1, x@group2, cluster_word, x@cluster)
+  title <- sprintf(
+    "%s %s versus %s in %s %s",
+    h, x@group1, x@group2, cluster_word, x@cluster
+  )
 
   # P2.14.2 display filters. If `available_*` are supplied, invalid requested
   # names produce a WARNING callout (listing the valid names). Otherwise the
   # comparison is silently skipped (return character()) when it does not match.
-  bad <- .dea_filter_invalid(clusters_to_show, groups_to_show,
-                             available_clusters, available_groups)
+  bad <- .dea_filter_invalid(
+    clusters_to_show, groups_to_show,
+    available_clusters, available_groups
+  )
   if (length(bad) > 0L) {
-    return(c(title, "", "::: {.callout-warning}",
-             "#### Invalid filter argument(s)", "", bad, "", ":::", ""))
+    return(c(
+      title, "", "::: {.callout-warning}",
+      "#### Invalid filter argument(s)", "", bad, "", ":::", ""
+    ))
   }
   if (!.dea_show_comparison(x, clusters_to_show, groups_to_show)) {
     return(character())
@@ -2264,9 +2476,11 @@ dea_report_lines <- function(x,
   comp_lines <- character()
   if (!is.null(composition_state_col)) {
     comp_int <- if ("composition" %in% interactive_plots) "TRUE" else "FALSE"
-    cargs <- sprintf("meta, state_col = %s, group_col = %s, patient_col = %s, interactive = %s",
-                     shQuote(composition_state_col), shQuote(composition_group_col),
-                     shQuote(composition_patient_col), comp_int)
+    cargs <- sprintf(
+      "meta, state_col = %s, group_col = %s, patient_col = %s, interactive = %s",
+      shQuote(composition_state_col), shQuote(composition_group_col),
+      shQuote(composition_patient_col), comp_int
+    )
     comp_lines <- c(
       "```{r}",
       "#| echo: false",
@@ -2285,7 +2499,8 @@ dea_report_lines <- function(x,
       sprintf("#| label: fig-composition-box-%s", .dea_sanitize_id(fig_id)),
       sprintf("composition_boxplot(%s)", cargs),
       "```",
-      "")
+      ""
+    )
   }
 
   # Not computed at all: show the comparison summary (groups/cluster/columns +
@@ -2320,7 +2535,8 @@ dea_report_lines <- function(x,
     sprintf("**%s:** `%s`", cluster_word, x@cluster),
     "",
     sprintf("**Levels shown:** %s.", paste(vapply(show_levels, .dea_level_label, character(1)),
-                                       collapse = ", ")),
+      collapse = ", "
+    )),
     ""
   )
 
@@ -2338,10 +2554,12 @@ dea_report_lines <- function(x,
     }
     body <- c(
       body,
-      .dea_level_lines(x, level = level, fig_id = fig_id,
-                       obj_name = obj_name, base_level = base_level, meta = meta,
-                       interactive_plots = interactive_plots,
-                       gsea_metric = gsea_metric)
+      .dea_level_lines(x,
+        level = level, fig_id = fig_id,
+        obj_name = obj_name, base_level = base_level, meta = meta,
+        interactive_plots = interactive_plots,
+        gsea_metric = gsea_metric
+      )
     )
   }
 

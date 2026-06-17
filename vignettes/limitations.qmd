@@ -35,10 +35,10 @@ While targets is good to detect change in functions defined in the global enviro
 ```{r}
 #| eval: false
 #| include: true
-targets::tar_destroy()      # 1. destroy all steps in the pipeline
-targets::tar_delete(steps_concerned_1, steps_concerned_2)       # (optional) delete only the concerned steps
-targets::tar_make()         # 2. relaunch the pipeline
-quarto::quarto_render(".")  # 3. recompile the report
+targets::tar_destroy() # 1. destroy all steps in the pipeline
+targets::tar_delete(steps_concerned_1, steps_concerned_2) # (optional) delete only the concerned steps
+targets::tar_make() # 2. relaunch the pipeline
+quarto::quarto_render(".") # 3. recompile the report
 ```
 
 ## scitargets_dea objects and the qs2 format

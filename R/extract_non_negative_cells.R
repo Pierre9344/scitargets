@@ -14,12 +14,12 @@
 #' extract_non_negative_cells(obj = Seurat_obj)
 #' }
 extract_non_negative_cells <- function(obj = NULL,
-                                   hto_ident = "HTO_classification.global",
-                                   default_seed = 1234) {
+                                       hto_ident = "HTO_classification.global",
+                                       default_seed = 1234) {
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   }
-  if (! hto_ident %in% colnames(obj[[]])) {
+  if (!hto_ident %in% colnames(obj[[]])) {
     stop("hto_ident must be part of obj metadata")
   }
   local_seed <- base::ifelse(targets::tar_active(), targets::tar_seed_get(), default_seed)

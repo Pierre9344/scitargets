@@ -64,8 +64,9 @@ thresholds for the single-cell and pseudobulk levels. \code{min_replicates}
 (pseudobulk only; default 3) is the minimum number of biological replicates
 (\code{pseudobulk_unit}) required per group.}
 
-\item{pb_test}{Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk
-level only.}
+\item{pb_test}{Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk level only.
+Use \code{"Wald"} for the standard pairwise group1-vs-group2 analysis and for downstream signed GO/GSEA.
+"LRT"\verb{is intended for testing the contribution of}group\verb{relative to a reduced model; when using}"LRT"\verb{, }pb_reduced\verb{should retain all non-group covariates from}pb_design`.}
 
 \item{pb_design}{Pseudobulk DESeq2 design as a length-1 character formula
 (default "~ group"), passed through \code{\link[stats:as.formula]{stats::as.formula()}} to DESeq2. Must

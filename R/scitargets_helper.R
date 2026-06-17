@@ -29,7 +29,6 @@
 }
 
 
-
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
@@ -268,8 +267,8 @@
 .build_cnet_data <- function(res_table, min_signif_genes, plot_number, layout_seed = 5114L) {
   if (
     is.null(res_table) ||
-    nrow(res_table) == 0L ||
-    !all(c("GO.ID", "Term", "adjpval", "Significant", "Genes") %in% colnames(res_table))
+      nrow(res_table) == 0L ||
+      !all(c("GO.ID", "Term", "adjpval", "Significant", "Genes") %in% colnames(res_table))
   ) {
     return(NULL)
   }
@@ -396,8 +395,9 @@
   # it on the search path). Clear error if the Suggests package is not installed.
   if (!require(params$org_db, character.only = TRUE, quietly = TRUE)) {
     stop("Package '", params$org_db, "' (", params$organism,
-         ") is required for GO enrichment; it is in Suggests -- please install it.",
-         call. = FALSE)
+      ") is required for GO enrichment; it is in Suggests -- please install it.",
+      call. = FALSE
+    )
   }
   # A single topGO run uses a single ontology; callers loop over ontologies.
   ontology <- params$ontology[[1L]]
@@ -438,11 +438,14 @@
     algorithm = params$algorithm
   )
 
-  # topGO::GenTable errors when topNodes exceeds the number of GO terms that
-  # were actually scored (can happen with small gene universes), so clamp it.
-  n_scored <- length(topGO::score(res_result))
-  top_nodes <- min(params$top_nodes, n_scored)
-  if (top_nodes < 1L) {
+  # All scored GO terms define the multiple-testing universe.
+  # Do NOT limit this to params$top_nodes before BH correction.
+  all_scores <- topGO::score(res_result)
+  all_scores <- all_scores[!is.na(all_scores)]
+
+  n_scored <- length(all_scores)
+
+  if (n_scored < 1L) {
     out <- .empty_go_result("topGO returned no GO terms.", direction, params)
     out$foreground_genes <- fg.genes
     out$background_genes <- bg.genes
@@ -450,10 +453,13 @@
     return(out)
   }
 
+  # Request all scored terms from GenTable so that the adjusted p-values are
+  # computed over all tested terms. The final table is capped to params$top_nodes
+  # only after p-value adjustment and significance filtering.
   res_table <- topGO::GenTable(
     GOdata,
     pval = res_result,
-    topNodes = top_nodes,
+    topNodes = n_scored,
     numChar = params$num_char
   )
 
@@ -466,9 +472,16 @@
   }
 
   res_table <- as.data.frame(res_table, stringsAsFactors = FALSE)
-  # p-value adjustment is done individually, within this ontology only.
+
+  # Use numeric topGO scores, keyed by GO.ID.
+  # This avoids relying on the formatted p-value column returned by GenTable().
+  res_table$pval <- unname(all_scores[res_table$GO.ID])
+
+  # BH adjustment is done individually within this ontology, but across ALL
+  # scored GO terms for that ontology, not only the displayed top_nodes terms.
   res_table$adjpval <- stats::p.adjust(res_table$pval, method = "BH")
-  res_table <- res_table[!is.na(res_table$adjpval) & res_table$adjpval < params$p_adj_cutoff, , drop = FALSE]
+
+  res_table <- res_table[!is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, drop = FALSE]
 
   if (nrow(res_table) == 0L) {
     out <- .empty_go_result("No GO terms passed the adjusted p-value threshold.", direction, params)
@@ -477,6 +490,16 @@
     if (isTRUE(params$keep_topgo_data)) out$GOdata <- GOdata
     return(out)
   }
+
+  # Deterministic ordering before truncating the final output.
+  res_table <- res_table[
+    order(res_table$adjpval, res_table$pval, res_table$GO.ID), ,
+    drop = FALSE
+  ]
+
+  # The final GO table should not show more than params$top_nodes rows.
+  top_nodes <- min(params$top_nodes, nrow(res_table))
+  res_table <- res_table[seq_len(top_nodes), , drop = FALSE]
 
   res_table$Annotated <- suppressWarnings(as.numeric(res_table$Annotated))
   res_table$Significant <- suppressWarnings(as.numeric(res_table$Significant))
@@ -789,7 +812,7 @@
   shrink_method <- dp$pb_lfc_shrink_method %||%
     attr(x@de[["pseudobulk"]], "lfcShrink_method")
   shrink_val <- if (shrink_requested && !is.null(shrink_method) &&
-                    !shrink_method %in% c("none", "disabled")) {
+    !shrink_method %in% c("none", "disabled")) {
     paste0("yes (", shrink_method, ")")
   } else if (shrink_requested) {
     "yes"
@@ -992,7 +1015,8 @@
   grp <- as.character(meta[[group_by]])
   labels <- if (identical(group2, "rest")) {
     ifelse(keep_cluster & !is.na(grp),
-           ifelse(grp == group1, group1, "rest"), NA_character_)
+      ifelse(grp == group1, group1, "rest"), NA_character_
+    )
   } else {
     ifelse(keep_cluster & grp %in% c(group1, group2), grp, NA_character_)
   }
@@ -1020,15 +1044,21 @@
   if (coef_name %in% rn && requireNamespace("apeglm", quietly = TRUE)) {
     res <- tryCatch(
       DESeq2::lfcShrink(dds, coef = coef_name, type = "apeglm", quiet = TRUE),
-      error = function(e) NULL)
-    if (!is.null(res)) return(list(lfc = as_named(res), method = "apeglm"))
+      error = function(e) NULL
+    )
+    if (!is.null(res)) {
+      return(list(lfc = as_named(res), method = "apeglm"))
+    }
   }
   # ashr (fallback) -- works with an arbitrary contrast.
   if (requireNamespace("ashr", quietly = TRUE)) {
     res <- tryCatch(
       DESeq2::lfcShrink(dds, contrast = c("group", s1, s2), type = "ashr", quiet = TRUE),
-      error = function(e) NULL)
-    if (!is.null(res)) return(list(lfc = as_named(res), method = "ashr"))
+      error = function(e) NULL
+    )
+    if (!is.null(res)) {
+      return(list(lfc = as_named(res), method = "ashr"))
+    }
   }
   # normal (DESeq2 built-in) -- no extra package required.
   res <- tryCatch(
@@ -1037,8 +1067,11 @@
     } else {
       DESeq2::lfcShrink(dds, contrast = c("group", s1, s2), type = "normal", quiet = TRUE)
     },
-    error = function(e) NULL)
-  if (!is.null(res)) return(list(lfc = as_named(res), method = "normal"))
+    error = function(e) NULL
+  )
+  if (!is.null(res)) {
+    return(list(lfc = as_named(res), method = "normal"))
+  }
 
   # all methods failed -> NA shrinkage (MLE remains in avg_log2FC).
   list(lfc = stats::setNames(rep(NA_real_, nrow(dds)), rownames(dds)), method = "none")
@@ -1052,7 +1085,7 @@
     used <- isTRUE(obj@de_params$pb_lfc_shrink)
     m <- obj@de_params$pb_lfc_shrink_method
     if (used && !is.null(m) && !m %in% c("none", "disabled") &&
-        "avg_log2FC_shrink" %in% names(de)) {
+      "avg_log2FC_shrink" %in% names(de)) {
       return("avg_log2FC_shrink")
     }
   }
@@ -1092,7 +1125,8 @@
     "#| warning: false",
     sprintf("#| column: %s", opts$column %||% "screen-outset"),
     sprintf("#| label: %s", opts$label %||% default_label),
-    sprintf("#| fig-cap: \"%s\"", opts$caption %||% default_caption))
+    sprintf("#| fig-cap: \"%s\"", opts$caption %||% default_caption)
+  )
   if (!is.null(opts$fig_width)) {
     lines <- c(lines, sprintf("#| fig-width: %s", opts$fig_width))
   }
@@ -1109,19 +1143,23 @@
 # Should this comparison be rendered given clusters_to_show / groups_to_show?
 .dea_show_comparison <- function(x, clusters_to_show = NA, groups_to_show = NA) {
   if (!.dea_filter_all(clusters_to_show)) {
-    if (!x@cluster %in% as.character(clusters_to_show)) return(FALSE)
+    if (!x@cluster %in% as.character(clusters_to_show)) {
+      return(FALSE)
+    }
   }
   if (!.dea_filter_all(groups_to_show)) {
     g <- as.character(groups_to_show)
     pair <- c(x@group1, x@group2)
     keep <- if (length(g) == 1L) {
-      g %in% pair                              # any comparison involving that group
+      g %in% pair # any comparison involving that group
     } else if (length(g) == 2L) {
-      setequal(g, pair)                        # only the comparison between the two
+      setequal(g, pair) # only the comparison between the two
     } else {
-      all(pair %in% g)                         # both groups among the listed set
+      all(pair %in% g) # both groups among the listed set
     }
-    if (!isTRUE(keep)) return(FALSE)
+    if (!isTRUE(keep)) {
+      return(FALSE)
+    }
   }
   TRUE
 }
@@ -1136,7 +1174,8 @@
     if (length(bad) > 0L) {
       msgs <- c(msgs, sprintf(
         "Unknown cluster(s) in `clusters_to_show`: %s. Available: %s.",
-        paste(bad, collapse = ", "), paste(available_clusters, collapse = ", ")))
+        paste(bad, collapse = ", "), paste(available_clusters, collapse = ", ")
+      ))
     }
   }
   if (!is.null(available_groups) && !.dea_filter_all(groups_to_show)) {
@@ -1144,7 +1183,8 @@
     if (length(bad) > 0L) {
       msgs <- c(msgs, sprintf(
         "Unknown group(s) in `groups_to_show`: %s. Available: %s.",
-        paste(bad, collapse = ", "), paste(available_groups, collapse = ", ")))
+        paste(bad, collapse = ", "), paste(available_groups, collapse = ", ")
+      ))
     }
   }
   msgs
@@ -1170,21 +1210,23 @@
     cutoff <- padj_cutoff %||% obj@padj_cutoffs[[lv]] %||% 0.05
     sig <- !is.na(de$p_val_adj) & de$p_val_adj <= cutoff
     lfc <- de$avg_log2FC
-    genes <- switch(
-      direction,
+    genes <- switch(direction,
       up   = de$Gene[sig & !is.na(lfc) & lfc > 0],
       down = de$Gene[sig & !is.na(lfc) & lfc < 0],
-      both = de$Gene[sig])
+      both = de$Gene[sig]
+    )
     genes <- unique(genes[!is.na(genes) & nzchar(genes)])
     if (length(genes) > 0L) sets[[nm]] <- genes
   }
-  if (length(sets) == 0L) return(data.frame())
+  if (length(sets) == 0L) {
+    return(data.frame())
+  }
   all_genes <- sort(unique(unlist(sets, use.names = FALSE)))
   memb <- lapply(all_genes, function(g) {
     names(sets)[vapply(sets, function(s) g %in% s, logical(1L))]
   })
   df <- data.frame(gene = all_genes, stringsAsFactors = FALSE)
-  df$comparisons <- memb  # list-column for ggupset
+  df$comparisons <- memb # list-column for ggupset
   df
 }
 
@@ -1200,7 +1242,9 @@
                                   after_removal = TRUE) {
   metric <- match.arg(metric)
   x_list <- normalize_dea_list(x)
-  if (length(x_list) == 0L) return(data.frame())
+  if (length(x_list) == 0L) {
+    return(data.frame())
+  }
   rows <- lapply(x_list, function(obj) {
     ref <- if (identical(obj@group2, "rest")) "rest" else obj@group2
     co <- obj@pca[[level]]$coords
@@ -1213,36 +1257,46 @@
         n1 = length(unique(sub$unit[sub$comparison_role == obj@group1])),
         n2 = length(unique(sub$unit[sub$comparison_role == ref])),
         c1 = sum(sub$n_cells[sub$comparison_role == obj@group1], na.rm = TRUE),
-        c2 = sum(sub$n_cells[sub$comparison_role == ref], na.rm = TRUE))
+        c2 = sum(sub$n_cells[sub$comparison_role == ref], na.rm = TRUE)
+      )
     }
-    val <- switch(
-      metric,
+    val <- switch(metric,
       testable = {
         if (is.null(co)) {
           as.numeric(identical(obj@status, "computed") && level %in% obj@levels)
         } else {
-          g <- grp_counts(); as.numeric(min(g$n1, g$n2) >= min_rep)
+          g <- grp_counts()
+          as.numeric(min(g$n1, g$n2) >= min_rep)
         }
       },
-      patients = if (is.null(co)) NA_real_ else { g <- grp_counts(); min(g$n1, g$n2) },
+      patients = if (is.null(co)) {
+        NA_real_
+      } else {
+        g <- grp_counts()
+        min(g$n1, g$n2)
+      },
       cells = {
         if (is.null(co)) {
-          nc <- as.data.frame(obj@n_cells)   # fallback (pre-removal) when no PCA
+          nc <- as.data.frame(obj@n_cells) # fallback (pre-removal) when no PCA
           g1 <- nc$N[nc$comparison_group == obj@group1]
           g2 <- nc$N[nc$comparison_group == ref]
           if (length(g1) && length(g2)) min(g1, g2) else NA_real_
         } else {
-          g <- grp_counts(); min(g$c1, g$c2)
+          g <- grp_counts()
+          min(g$c1, g$c2)
         }
       },
       outliers = {
         # flagged outlier replicates among the comparison's two groups (those
         # removed from DESeq2 when pb_remove_outliers = TRUE).
         if (is.null(co)) NA_real_ else sum(co$outlier & co$comparison_role %in% c(obj@group1, ref))
-      })
-    data.frame(cluster = obj@cluster,
-               comparison = paste(obj@group1, "vs", obj@group2),
-               value = as.numeric(val), stringsAsFactors = FALSE)
+      }
+    )
+    data.frame(
+      cluster = obj@cluster,
+      comparison = paste(obj@group1, "vs", obj@group2),
+      value = as.numeric(val), stringsAsFactors = FALSE
+    )
   })
   do.call(rbind, rows)
 }
@@ -1267,12 +1321,15 @@
     }
   }
   md <- md[!is.na(md[[state_col]]), , drop = FALSE]
-  if (nrow(md) == 0L) return(data.frame())
+  if (nrow(md) == 0L) {
+    return(data.frame())
+  }
   pat <- as.character(md[[patient_col]])
-  st  <- as.character(md[[state_col]])
+  st <- as.character(md[[state_col]])
 
   tab <- as.data.frame(table(patient = pat, state = st), stringsAsFactors = FALSE)
-  tab$n_cells <- as.integer(tab$Freq); tab$Freq <- NULL
+  tab$n_cells <- as.integer(tab$Freq)
+  tab$Freq <- NULL
   totals <- tapply(tab$n_cells, tab$patient, sum)
   tab$n_total <- as.integer(totals[tab$patient])
   tab$proportion <- ifelse(tab$n_total > 0L, tab$n_cells / tab$n_total, NA_real_)
@@ -1291,19 +1348,21 @@
   if (!isTRUE(requested)) {
     message(sprintf(
       "[run_dea] %s: pseudobulk LFC shrinkage disabled (avg_log2FC_shrink = NA).",
-      comparison_name))
+      comparison_name
+    ))
     return(invisible(NULL))
   }
-  desc <- switch(
-    method %||% "none",
+  desc <- switch(method %||% "none",
     apeglm = "apeglm (DESeq2::lfcShrink type='apeglm'; adaptive Bayesian shrinkage on the group coefficient)",
     ashr   = "ashr (DESeq2::lfcShrink type='ashr'; adaptive shrinkage on the group1-vs-group2 contrast)",
     normal = "normal (DESeq2 built-in lfcShrink type='normal'; apeglm/ashr not installed)",
     none   = "FAILED -- no shrinkage method succeeded (avg_log2FC_shrink = NA)",
-    method)
+    method
+  )
   message(sprintf(
     "[run_dea] %s: pseudobulk LFC shrinkage = %s. MLE kept in avg_log2FC; shrunken in avg_log2FC_shrink.",
-    comparison_name, desc))
+    comparison_name, desc
+  ))
   invisible(NULL)
 }
 
@@ -1315,28 +1374,81 @@
 # the lookup is joined on pseudobulk_unit.
 .dea_add_covariates <- function(col_data, md, design, covariate_key, pseudobulk_unit) {
   vars <- setdiff(all.vars(stats::as.formula(design)), "group")
-  if (length(vars) == 0L) return(col_data)
+
+  if (length(vars) == 0L) {
+    return(col_data)
+  }
+
+  if (!"unit" %in% colnames(col_data)) {
+    stop("col_data must contain a 'unit' column.", call. = FALSE)
+  }
   if (!covariate_key %in% colnames(md)) {
     stop("covariate_key column '", covariate_key, "' not found in metadata.", call. = FALSE)
   }
+  if (!pseudobulk_unit %in% colnames(md)) {
+    stop("pseudobulk_unit column '", pseudobulk_unit, "' not found in metadata.", call. = FALSE)
+  }
   miss <- setdiff(vars, colnames(md))
   if (length(miss) > 0L) {
-    stop("design references covariate(s) not found in metadata: ",
-         paste(miss, collapse = ", "), ".", call. = FALSE)
+    stop(
+      "design references covariate(s) not found in metadata: ",
+      paste(miss, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
   }
   key <- as.character(md[[covariate_key]])
   for (v in vars) {
-    val <- as.character(md[[v]])
-    n_distinct <- tapply(val, key, function(z) length(unique(z[!is.na(z)])))
+    val <- md[[v]]
+    n_distinct <- tapply(
+      val, key,
+      function(z) length(unique(z[!is.na(z)]))
+    )
     if (any(n_distinct > 1L, na.rm = TRUE)) {
-      warning("Covariate '", v, "' is not constant within '", covariate_key,
-              "'; using the first value per ", covariate_key, ".", call. = FALSE)
+      warning(
+        "Covariate '", v, "' is not constant within '", covariate_key,
+        "'; using the first value per ", covariate_key, ".",
+        call. = FALSE
+      )
     }
   }
-  lut <- dplyr::filter(md, !duplicated(key))
+  keep <- !is.na(key) & !duplicated(key)
+  lut <- md[keep, , drop = FALSE]
+
   .sanitize_unit <- function(u) ifelse(grepl("^[0-9]", u), paste0("g", u), u)
-  m <- match(col_data$unit, .sanitize_unit(as.character(lut[[pseudobulk_unit]])))
-  for (v in vars) col_data[[v]] <- as.character(lut[[v]])[m]
+
+  m <- match(
+    as.character(col_data$unit),
+    .sanitize_unit(as.character(lut[[pseudobulk_unit]]))
+  )
+
+  if (anyNA(m)) {
+    missing_units <- unique(as.character(col_data$unit)[is.na(m)])
+    stop(
+      "Could not match pseudobulk unit(s) in col_data back to metadata column '",
+      pseudobulk_unit,
+      "': ",
+      paste(missing_units, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  for (v in vars) {
+    covariate_values <- lut[[v]][m]
+    if (anyNA(covariate_values)) {
+      stop(
+        "Covariate '", v, "' contains missing values after matching pseudobulk units. ",
+        "DESeq2 cannot use missing values in the design matrix.",
+        call. = FALSE
+      )
+    }
+    # Preserve numeric covariates such as age, RIN, percent.mt, etc.
+    # Convert character/logical covariates to factors for DESeq2 design use.
+    if (is.character(covariate_values) || is.logical(covariate_values)) {
+      covariate_values <- factor(covariate_values)
+    }
+    col_data[[v]] <- covariate_values
+  }
+
   col_data
 }
 
@@ -1401,8 +1513,10 @@
   # dropped because of an unexpected name change).
   .sanitize_unit <- function(u) ifelse(grepl("^[0-9]", u), paste0("g", u), u)
   cell_counts <- as.data.frame(
-    table(unit = .sanitize_unit(as.character(md[[pseudobulk_unit]])),
-          group = as.character(seurat_obj$.dea_group)),
+    table(
+      unit = .sanitize_unit(as.character(md[[pseudobulk_unit]])),
+      group = as.character(seurat_obj$.dea_group)
+    ),
     stringsAsFactors = FALSE
   )
   col_data$n_cells <- cell_counts$Freq[match(
@@ -1433,8 +1547,8 @@
   n_per_group <- table(col_data$group)
   needed <- c(group1, ref)
   if (length(n_per_group) < 2L ||
-      any(is.na(n_per_group[needed])) ||
-      any(n_per_group[needed] < min_replicates)) {
+    any(is.na(n_per_group[needed])) ||
+    any(n_per_group[needed] < min_replicates)) {
     return(.dea_failed(paste0(
       "Pseudobulk not computed: fewer than ", min_replicates,
       " biological replicates (", pseudobulk_unit, ") with >= ",
@@ -1447,9 +1561,11 @@
   # Add any design covariates (one row per replicate) before fitting.
   col_data <- .dea_add_covariates(col_data, md, design, covariate_key, pseudobulk_unit)
 
-  run_deseq2(counts, col_data, group1 = group1, group2 = ref,
-             test = test, design = design, reduced = reduced,
-             low_count_filter = low_count_filter, shrinkage = shrinkage)
+  run_deseq2(counts, col_data,
+    group1 = group1, group2 = ref,
+    test = test, design = design, reduced = reduced,
+    low_count_filter = low_count_filter, shrinkage = shrinkage
+  )
 }
 
 # Pseudobulk-sample PCA + outlier detection for one comparison's CLUSTER. Unlike
@@ -1466,8 +1582,10 @@
                                outlier_conf = 0.975) {
   md <- seurat_obj@meta.data
   if (!pseudobulk_unit %in% colnames(md)) {
-    return(list(status = "not_computed",
-                reason = paste0("pseudobulk_unit '", pseudobulk_unit, "' not in metadata.")))
+    return(list(
+      status = "not_computed",
+      reason = paste0("pseudobulk_unit '", pseudobulk_unit, "' not in metadata.")
+    ))
   }
   # label cluster cells with their FULL group (NA elsewhere -> dropped on aggregate)
   keep_cluster <- if (length(cluster_by) == 1L && nzchar(cluster_by)) {
@@ -1478,31 +1596,43 @@
   grp <- as.character(md[[group_by]])
   pca_group <- ifelse(keep_cluster & !is.na(grp), grp, NA_character_)
   seurat_obj <- SeuratObject::AddMetaData(
-    seurat_obj, stats::setNames(pca_group, rownames(md)), col.name = ".pca_group")
+    seurat_obj, stats::setNames(pca_group, rownames(md)),
+    col.name = ".pca_group"
+  )
 
   pb <- Seurat::PseudobulkExpression(
-    seurat_obj, assays = "RNA", layer = "counts",
+    seurat_obj,
+    assays = "RNA", layer = "counts",
     group.by = c(pseudobulk_unit, ".pca_group"),
-    method = "aggregate", return.seurat = TRUE, verbose = FALSE)
+    method = "aggregate", return.seurat = TRUE, verbose = FALSE
+  )
   counts <- as.matrix(SeuratObject::LayerData(pb, assay = "RNA", layer = "counts"))
   pb_md <- pb@meta.data
   if (!all(c(pseudobulk_unit, ".pca_group") %in% colnames(pb_md))) {
-    return(list(status = "not_computed",
-                reason = "Could not recover pseudobulk sample metadata for PCA."))
+    return(list(
+      status = "not_computed",
+      reason = "Could not recover pseudobulk sample metadata for PCA."
+    ))
   }
   col_data <- data.frame(
     sample = rownames(pb_md), unit = as.character(pb_md[[pseudobulk_unit]]),
-    group = as.character(pb_md[[".pca_group"]]), stringsAsFactors = FALSE)
+    group = as.character(pb_md[[".pca_group"]]), stringsAsFactors = FALSE
+  )
   col_data <- col_data[match(colnames(counts), col_data$sample), , drop = FALSE]
 
   # drop pseudobulk samples built from too few cells (sanitize unit like Seurat does)
   .san <- function(u) ifelse(grepl("^[0-9]", u), paste0("g", u), u)
-  cc <- as.data.frame(table(unit = .san(as.character(md[[pseudobulk_unit]])),
-                            group = as.character(seurat_obj$.pca_group)),
-                      stringsAsFactors = FALSE)
+  cc <- as.data.frame(
+    table(
+      unit = .san(as.character(md[[pseudobulk_unit]])),
+      group = as.character(seurat_obj$.pca_group)
+    ),
+    stringsAsFactors = FALSE
+  )
   col_data$n_cells <- cc$Freq[match(
     paste(col_data$unit, col_data$group, sep = "\r"),
-    paste(cc$unit, cc$group, sep = "\r"))]
+    paste(cc$unit, cc$group, sep = "\r")
+  )]
   if (all(is.na(col_data$n_cells))) {
     col_data$n_cells <- min_cells_per_sample
   } else {
@@ -1513,47 +1643,64 @@
   col_data <- col_data[keep, , drop = FALSE]
 
   if (ncol(counts) < 3L) {
-    return(list(status = "not_computed",
-                reason = sprintf("PCA needs >= 3 pseudobulk samples in cluster '%s' (got %d).",
-                                 cluster, ncol(counts))))
+    return(list(
+      status = "not_computed",
+      reason = sprintf(
+        "PCA needs >= 3 pseudobulk samples in cluster '%s' (got %d).",
+        cluster, ncol(counts)
+      )
+    ))
   }
 
   # DESeq2 VST on the cluster pseudobulk -> top-variance genes -> PCA.
-  vmat <- tryCatch({
-    dds <- DESeq2::DESeqDataSetFromMatrix(
-      round(counts), data.frame(row.names = col_data$sample), design = ~1)
-    dds <- dds[rowSums(DESeq2::counts(dds)) > 0L, ]
-    dds <- DESeq2::estimateSizeFactors(dds)
-    suppressMessages(DESeq2::getVarianceStabilizedData(
-      DESeq2::estimateDispersions(dds, fitType = "parametric")))
-  }, error = function(e) NULL)
+  vmat <- tryCatch(
+    {
+      dds <- DESeq2::DESeqDataSetFromMatrix(
+        round(counts), data.frame(row.names = col_data$sample),
+        design = ~1
+      )
+      dds <- dds[rowSums(DESeq2::counts(dds)) > 0L, ]
+      dds <- DESeq2::estimateSizeFactors(dds)
+      suppressMessages(DESeq2::getVarianceStabilizedData(
+        DESeq2::estimateDispersions(dds, fitType = "parametric")
+      ))
+    },
+    error = function(e) NULL
+  )
   if (is.null(vmat) || nrow(vmat) < 2L) {
-    return(list(status = "not_computed",
-                reason = "VST failed (too few genes/samples) for PCA."))
+    return(list(
+      status = "not_computed",
+      reason = "VST failed (too few genes/samples) for PCA."
+    ))
   }
   rv <- apply(vmat, 1L, stats::var)
   top <- utils::head(order(rv, decreasing = TRUE), min(n_top_genes, nrow(vmat)))
-  X <- t(vmat[top, , drop = FALSE])          # samples x genes
+  X <- t(vmat[top, , drop = FALSE]) # samples x genes
   pca <- stats::prcomp(X, center = TRUE, scale. = FALSE)
   pct <- pca$sdev^2 / sum(pca$sdev^2)
 
   out_names <- tryCatch(
     names(mt::pca.outlier(X, conf.level = outlier_conf, plot = FALSE)$outlier),
-    error = function(e) character())
+    error = function(e) character()
+  )
 
   ref <- if (identical(group2, "rest")) "rest" else group2
   role <- ifelse(col_data$group == group1, group1,
-                 ifelse(!identical(group2, "rest") & col_data$group == ref, ref, "other"))
+    ifelse(!identical(group2, "rest") & col_data$group == ref, ref, "other")
+  )
   coords <- data.frame(
     sample = col_data$sample, unit = col_data$unit, group = col_data$group,
     comparison_role = role, n_cells = col_data$n_cells,
     PC1 = pca$x[, 1L], PC2 = if (ncol(pca$x) >= 2L) pca$x[, 2L] else 0,
-    outlier = col_data$sample %in% out_names, stringsAsFactors = FALSE)
+    outlier = col_data$sample %in% out_names, stringsAsFactors = FALSE
+  )
 
-  list(status = "computed", coords = coords,
-       var_explained = c(PC1 = pct[1L], PC2 = if (length(pct) >= 2L) pct[2L] else NA_real_),
-       n_samples = nrow(coords), n_top_genes = length(top),
-       outlier_samples = out_names, outlier_conf = outlier_conf, reason = NA_character_)
+  list(
+    status = "computed", coords = coords,
+    var_explained = c(PC1 = pct[1L], PC2 = if (length(pct) >= 2L) pct[2L] else NA_real_),
+    n_samples = nrow(coords), n_top_genes = length(top),
+    outlier_samples = out_names, outlier_conf = outlier_conf, reason = NA_character_
+  )
 }
 
 # =============================================================================
@@ -1562,7 +1709,7 @@
 
 # Friendly collection label -> msigdbr (collection, subcollection).
 .MSIGDB_COLLECTION_MAP <- list(
-  "Hallmark"       = list(collection = "H",  subcollection = NULL),
+  "Hallmark"       = list(collection = "H", subcollection = NULL),
   "GO:BP"          = list(collection = "C5", subcollection = "GO:BP"),
   "C7:ImmuneSigDB" = list(collection = "C7", subcollection = "IMMUNESIGDB")
 )
@@ -1680,17 +1827,19 @@
   bad <- setdiff(ip, valid)
   if (length(bad) > 0L) {
     stop("interactive_plots must be NA or a subset of c(",
-         paste(sprintf("'%s'", valid), collapse = ","), "); got: ",
-         paste(bad, collapse = ", "), call. = FALSE)
+      paste(sprintf("'%s'", valid), collapse = ","), "); got: ",
+      paste(bad, collapse = ", "),
+      call. = FALSE
+    )
   }
   unique(ip)
 }
 
 .dea_level_label <- function(level) {
   switch(level,
-         single_cell = "Single-cell analysis (FindMarkers)",
-         pseudobulk = "Pseudobulk analysis (DESeq2)",
-         level
+    single_cell = "Single-cell analysis (FindMarkers)",
+    pseudobulk = "Pseudobulk analysis (DESeq2)",
+    level
   )
 }
 
@@ -1737,7 +1886,9 @@
 .dea_gsea_yield_data <- function(x, collection, level = "pseudobulk",
                                  padj_cutoff = NULL) {
   x_list <- normalize_dea_list(x)
-  if (length(x_list) == 0L) return(data.frame())
+  if (length(x_list) == 0L) {
+    return(data.frame())
+  }
   rows <- lapply(x_list, function(obj) {
     g <- obj@gsea[[level]]
     val <- NA_real_
@@ -1748,12 +1899,14 @@
         cutoff <- padj_cutoff %||% res$params$padj_cutoff %||% 0.05
         val <- sum(!is.na(rt$padj) & rt$padj < cutoff)
       } else {
-        val <- 0  # collection computed but produced no testable gene set
+        val <- 0 # collection computed but produced no testable gene set
       }
     }
-    data.frame(cluster = obj@cluster,
-               comparison = paste(obj@group1, "vs", obj@group2),
-               value = as.numeric(val), stringsAsFactors = FALSE)
+    data.frame(
+      cluster = obj@cluster,
+      comparison = paste(obj@group1, "vs", obj@group2),
+      value = as.numeric(val), stringsAsFactors = FALSE
+    )
   })
   do.call(rbind, rows)
 }
@@ -1774,10 +1927,14 @@
 # metadata data.frame at render time (so no pipeline rerun is needed). Returns a
 # list(per_group, per_unit, unit) or NULL if `meta` is unusable.
 .dea_compare_counts <- function(x, meta) {
-  if (is.null(meta)) return(NULL)
+  if (is.null(meta)) {
+    return(NULL)
+  }
   m <- as.data.frame(meta)
   gb <- x@group_by
-  if (length(gb) != 1L || !gb %in% colnames(m)) return(NULL)
+  if (length(gb) != 1L || !gb %in% colnames(m)) {
+    return(NULL)
+  }
   cb <- if (length(x@cluster_by) == 1L && !is.na(x@cluster_by) && nzchar(x@cluster_by)) {
     x@cluster_by
   } else {
@@ -1829,7 +1986,9 @@
 # (both levels), the DE-gene counts at that cutoff (both levels), and -- for
 # pseudobulk only -- whether LFC shrinkage was used and by which method.
 .dea_summary_level_lines <- function(x, level) {
-  if (is.null(level) || !level %in% x@levels) return(character())
+  if (is.null(level) || !level %in% x@levels) {
+    return(character())
+  }
   out <- character()
 
   cutoff <- x@padj_cutoffs[[level]] %||% 0.05
@@ -1837,12 +1996,13 @@
 
   de <- x@de[[level]]
   if (!is.null(de) && nrow(de) > 0L && "p_val_adj" %in% names(de)) {
-    sig  <- !is.na(de$p_val_adj) & de$p_val_adj <= cutoff
+    sig <- !is.na(de$p_val_adj) & de$p_val_adj <= cutoff
     n_up <- sum(sig & de$avg_log2FC > 0, na.rm = TRUE)
     n_dn <- sum(sig & de$avg_log2FC < 0, na.rm = TRUE)
     out <- c(out, sprintf(
       "- **Differentially Expressed Genes:** %d up-regulated and %d down-regulated (%d total)",
-      n_up, n_dn, n_up + n_dn))
+      n_up, n_dn, n_up + n_dn
+    ))
   }
 
   if (identical(level, "pseudobulk")) {
@@ -1850,7 +2010,7 @@
     method <- x@de_params$pb_lfc_shrink_method %||%
       attr(x@de[["pseudobulk"]], "lfcShrink_method")
     shr <- if (requested && !is.null(method) &&
-               !method %in% c("none", "disabled")) {
+      !method %in% c("none", "disabled")) {
       sprintf("Yes (%s)", method)
     } else if (requested) {
       "Yes"
@@ -1863,7 +2023,8 @@
     removed <- isTRUE(x@de_params$pb_remove_outliers)
     out <- c(out, sprintf(
       "- **Outliers:** %s for the DESeq2 comparison.",
-      if (removed) "removed" else "kept"))
+      if (removed) "removed" else "kept"
+    ))
   }
 
   c(out, "")
@@ -1876,35 +2037,47 @@
     sprintf("`%s`", x@cluster)
   }
   lines <- c(
-    sprintf("- **Groups compared:** `%s` vs `%s`  (metadata column `%s`)",
-            x@group1, x@group2, x@group_by),
+    sprintf(
+      "- **Groups compared:** `%s` vs `%s`  (metadata column `%s`)",
+      x@group1, x@group2, x@group_by
+    ),
     sprintf("- **Cluster:** %s", cluster_txt),
     sprintf("- **Status:** %s", x@status),
     ""
   )
   if (identical(x@status, "computed")) {
-    lines <- c(lines, sprintf("- **Levels computed:** %s",
-                              paste(x@levels, collapse = ", ")), "")
+    lines <- c(lines, sprintf(
+      "- **Levels computed:** %s",
+      paste(x@levels, collapse = ", ")
+    ), "")
     lines <- c(lines, .dea_summary_level_lines(x, level))
   } else {
-    lines <- c(lines,
-               "::: {.callout-warning}",
-               "#### Comparison not computed", "",
-               x@reason %||% "Not computed.", "",
-               ":::", "")
+    lines <- c(
+      lines,
+      "::: {.callout-warning}",
+      "#### Comparison not computed", "",
+      x@reason %||% "Not computed.", "",
+      ":::", ""
+    )
   }
 
   cc <- .dea_compare_counts(x, meta)
   if (!is.null(cc)) {
-    lines <- c(lines, "**Cells per group**", "",
-               as.character(knitr::kable(cc$per_group, format = "pipe")), "")
+    lines <- c(
+      lines, "**Cells per group**", "",
+      as.character(knitr::kable(cc$per_group, format = "pipe")), ""
+    )
     if (!is.null(cc$per_unit)) {
-      lines <- c(lines, sprintf("**Cells per %s and group**", cc$unit), "",
-                 as.character(knitr::kable(cc$per_unit, format = "pipe")), "")
+      lines <- c(
+        lines, sprintf("**Cells per %s and group**", cc$unit), "",
+        as.character(knitr::kable(cc$per_unit, format = "pipe")), ""
+      )
     }
   } else if (nrow(as.data.frame(x@n_cells)) > 0L) {
-    lines <- c(lines, "**Cells per group**", "",
-               as.character(knitr::kable(as.data.frame(x@n_cells), format = "pipe")), "")
+    lines <- c(
+      lines, "**Cells per group**", "",
+      as.character(knitr::kable(as.data.frame(x@n_cells), format = "pipe")), ""
+    )
   }
   lines
 }
@@ -1924,9 +2097,9 @@
   collections <- .dea_gsea_collections(x, level = level)
   q <- function(s) shQuote(s)
   bool <- function(b) if (isTRUE(b)) "TRUE" else "FALSE"
-  h_tab <- .dea_h(base_level)       # analysis tabs
+  h_tab <- .dea_h(base_level) # analysis tabs
   h_kind <- .dea_h(base_level + 1L) # GO plot-type / GSEA collection
-  h_dir <- .dea_h(base_level + 2L)  # ontology x direction
+  h_dir <- .dea_h(base_level + 2L) # ontology x direction
 
   # Pseudobulk PCA: a sentence listing the outlier samples BEFORE the tabset, and
   # a "PCA" tab (with the VST PCA plot) between Comparison summary and Volcano.
@@ -1939,8 +2112,10 @@
     outl <- unique(pca$coords$unit[pca$coords$outlier])
     outl <- sub("^g", "", outl)
     pre_lines <- if (length(outl) > 0L) {
-      c(sprintf("**The following samples were identified as outliers:** %s.",
-                paste(outl, collapse = ", ")), "")
+      c(sprintf(
+        "**The following samples were identified as outliers:** %s.",
+        paste(outl, collapse = ", ")
+      ), "")
     } else {
       c("*No samples were identified as outliers.*", "")
     }
@@ -1948,9 +2123,12 @@
       paste(h_tab, "PCA"), "",
       "```{r}", "#| column: page", "#| message: false", "#| warning: false",
       sprintf("#| label: fig-pca-%s", .dea_sanitize_id(fig_id, level)),
-      sprintf("pca_plot(%s, level = %s, interactive = %s)",
-              obj_name, q(level), bool("pca" %in% interactive_plots)),
-      "```", "")
+      sprintf(
+        "pca_plot(%s, level = %s, interactive = %s)",
+        obj_name, q(level), bool("pca" %in% interactive_plots)
+      ),
+      "```", ""
+    )
   }
 
   lines <- c(
@@ -1969,8 +2147,10 @@
     "#| message: false",
     "#| warning: false",
     sprintf("#| label: fig-volcano-%s", .dea_sanitize_id(fig_id, level)),
-    sprintf("volcano_plot(%s, level = %s, interactive = %s)",
-            obj_name, q(level), bool("volcano" %in% interactive_plots)),
+    sprintf(
+      "volcano_plot(%s, level = %s, interactive = %s)",
+      obj_name, q(level), bool("volcano" %in% interactive_plots)
+    ),
     "```",
     "",
     paste(h_tab, "DE table"),
@@ -1980,8 +2160,10 @@
     "#| message: false",
     "#| warning: false",
     sprintf("#| label: tbl-de-%s", .dea_sanitize_id(fig_id, level)),
-    sprintf("#| tbl-cap: \"Differential-expression results (%s level): %s vs %s in cluster %s.\"",
-            level, x@group1, x@group2, x@cluster),
+    sprintf(
+      "#| tbl-cap: \"Differential-expression results (%s level): %s vs %s in cluster %s.\"",
+      level, x@group1, x@group2, x@cluster
+    ),
     sprintf(
       "scitargets:::.scitargets_dt2_tbl(markers_table(%s, level = %s), page_length = 20)",
       obj_name, q(level)
@@ -1996,8 +2178,10 @@
     out <- c("::: {.panel-tabset}", "")
     for (o in onto) {
       for (dir in c("up", "down")) {
-        out <- c(out, paste(h_dir, sprintf("%s %s", o, toupper(dir))), "",
-                 kind_lines_fun(o, dir), "")
+        out <- c(
+          out, paste(h_dir, sprintf("%s %s", o, toupper(dir))), "",
+          kind_lines_fun(o, dir), ""
+        )
       }
     }
     c(out, ":::", "")
@@ -2007,8 +2191,10 @@
   # Ontology" tab when GO could not be computed, e.g. no significant DE genes
   # -> no GO terms). P2.14.1.
   go_total <- sum(vapply(onto, function(o) {
-    sum(vapply(c("up", "down"),
-               function(d) .dea_go_n_terms(x, level, d, o), numeric(1L)))
+    sum(vapply(
+      c("up", "down"),
+      function(d) .dea_go_n_terms(x, level, d, o), numeric(1L)
+    ))
   }, numeric(1L)))
   if (go_total > 0L) {
     lines <- c(lines, paste(h_tab, "Gene Ontology"), "", "::: {.panel-tabset}", "")
@@ -2017,32 +2203,44 @@
     lines <- c(lines, paste(h_kind, "Barplot"), "")
     lines <- c(lines, emit_go_onto_dir(function(o, dir) {
       tag <- .dea_sanitize_id(fig_id, level, "go-bar", o, dir)
-      c("```{r}", "#| column: page", "#| message: false", "#| warning: false",
+      c(
+        "```{r}", "#| column: page", "#| message: false", "#| warning: false",
         sprintf("#| fig-height: %s", .dea_fig_height(.dea_go_n_terms(x, level, dir, o))),
         sprintf("#| label: fig-go-%s", tag),
-        sprintf("go_barplot(%s, direction = %s, ontology = %s, level = %s, interactive = %s)",
-                obj_name, q(dir), q(o), q(level), bool("go" %in% interactive_plots)),
-        "```")
+        sprintf(
+          "go_barplot(%s, direction = %s, ontology = %s, level = %s, interactive = %s)",
+          obj_name, q(dir), q(o), q(level), bool("go" %in% interactive_plots)
+        ),
+        "```"
+      )
     }))
 
     # Network plot
     lines <- c(lines, paste(h_kind, "Network plot"), "")
     lines <- c(lines, emit_go_onto_dir(function(o, dir) {
       tag <- .dea_sanitize_id(fig_id, level, "go-net", o, dir)
-      c("```{r}", "#| column: page", "#| message: false", "#| warning: false",
+      c(
+        "```{r}", "#| column: page", "#| message: false", "#| warning: false",
         sprintf("#| label: fig-cnet-%s", tag),
-        sprintf("go_cnetplot(%s, direction = %s, ontology = %s, level = %s, interactive = %s)",
-                obj_name, q(dir), q(o), q(level), bool("go" %in% interactive_plots)),
-        "```")
+        sprintf(
+          "go_cnetplot(%s, direction = %s, ontology = %s, level = %s, interactive = %s)",
+          obj_name, q(dir), q(o), q(level), bool("go" %in% interactive_plots)
+        ),
+        "```"
+      )
     }))
 
     # Genes-Terms list
     lines <- c(lines, paste(h_kind, "Genes-Terms list"), "")
     lines <- c(lines, emit_go_onto_dir(function(o, dir) {
-      c("```{r}", "#| output: asis", "#| message: false", "#| warning: false",
-        sprintf("cat(go_genes_html(%s, direction = %s, ontology = %s, level = %s))",
-                obj_name, q(dir), q(o), q(level)),
-        "```")
+      c(
+        "```{r}", "#| output: asis", "#| message: false", "#| warning: false",
+        sprintf(
+          "cat(go_genes_html(%s, direction = %s, ontology = %s, level = %s))",
+          obj_name, q(dir), q(o), q(level)
+        ),
+        "```"
+      )
     }))
 
     lines <- c(lines, ":::", "") # close GO (Barplot/Network/Genes) tabset
@@ -2066,9 +2264,11 @@
         "#| warning: false",
         sprintf("#| fig-height: %s", .dea_fig_height(.dea_gsea_n_terms(x, level, col))),
         sprintf("#| label: fig-gsea-%s", tag),
-        sprintf("gsea_barplot(%s, collection = %s, level = %s, metric = %s, interactive = %s)",
-                obj_name, q(col), q(level), q(gsea_metric),
-                bool("gsea" %in% interactive_plots)),
+        sprintf(
+          "gsea_barplot(%s, collection = %s, level = %s, metric = %s, interactive = %s)",
+          obj_name, q(col), q(level), q(gsea_metric),
+          bool("gsea" %in% interactive_plots)
+        ),
         "```",
         "",
         "```{r}",
@@ -2076,10 +2276,14 @@
         "#| message: false",
         "#| warning: false",
         sprintf("#| label: tbl-gsea-%s", tag),
-        sprintf("#| tbl-cap: \"GSEA results: %s collection (%s level), %s vs %s in cluster %s.\"",
-                col, level, x@group1, x@group2, x@cluster),
-        sprintf("scitargets:::.scitargets_dt2_tbl(gsea_table(%s, collection = %s, level = %s), page_length = 15)",
-                obj_name, q(col), q(level)),
+        sprintf(
+          "#| tbl-cap: \"GSEA results: %s collection (%s level), %s vs %s in cluster %s.\"",
+          col, level, x@group1, x@group2, x@cluster
+        ),
+        sprintf(
+          "scitargets:::.scitargets_dt2_tbl(gsea_table(%s, collection = %s, level = %s), page_length = 15)",
+          obj_name, q(col), q(level)
+        ),
         "```",
         ""
       )

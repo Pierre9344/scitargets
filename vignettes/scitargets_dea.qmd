@@ -67,12 +67,12 @@ when it has at least `min_cells_per_group` cells.
 ```{r}
 comparisons <- scitargets::dea_comparisons(
   meta = seurat_obj@meta.data,
-  group_by   = "condition",     # metadata column holding the biological groups
-  cluster_by = "clusters_0.5",  # compare cells WITHIN the same cluster only
-  groups   = NA,                # NA = every pairwise group comparison;
-                                #   or e.g. c("treated", "control") for one pair
-  clusters = NA,                # NA = every cluster; or e.g. c("0", "3")
-  min_cells_per_group = 3       # skip a (cluster, group) with fewer cells
+  group_by = "condition", # metadata column holding the biological groups
+  cluster_by = "clusters_0.5", # compare cells WITHIN the same cluster only
+  groups = NA, # NA = every pairwise group comparison;
+  #   or e.g. c("treated", "control") for one pair
+  clusters = NA, # NA = every cluster; or e.g. c("0", "3")
+  min_cells_per_group = 3 # skip a (cluster, group) with fewer cells
 )
 ```
 
@@ -90,10 +90,10 @@ res <- scitargets::run_dea(
   seurat_obj = seurat_obj,
   group_by   = "condition",
   cluster_by = "clusters_0.5",
-  cluster    = "0",            # the cell state to analyse
-  group1     = "treated",      # positive log2FC / NES is "up in group1"
-  group2     = "control",      # reference group
-  level      = "both"          # "single_cell", "pseudobulk", or "both"
+  cluster    = "0", # the cell state to analyse
+  group1     = "treated", # positive log2FC / NES is "up in group1"
+  group2     = "control", # reference group
+  level      = "both" # "single_cell", "pseudobulk", or "both"
 )
 ```
 
@@ -158,27 +158,27 @@ gsea_gene_sets <- scitargets::get_msigdbr_pathways(
 ```{r}
 res <- scitargets::run_dea(
   seurat_obj = seurat_obj,
-  group_by   = "condition",
+  group_by = "condition",
   cluster_by = "clusters_0.5",
-  cluster    = "0",
-  group1     = "treated",
-  group2     = "control",
-  level      = "both",
-  run_go     = TRUE,
-  run_gsea   = TRUE,
-  go_params  = list(
+  cluster = "0",
+  group1 = "treated",
+  group2 = "control",
+  level = "both",
+  run_go = TRUE,
+  run_gsea = TRUE,
+  go_params = list(
     ontology = "BP", algorithm = "weight01", statistic = "fisher",
     p_adj_cutoff = 0.05, min_signif_genes = 5, plot_number = 20
   ),
   gsea_params = list(pathways = gsea_gene_sets),
-  species     = "human",
-  pseudobulk_unit  = "patient_id",
-  min_replicates   = 3,
-  pb_test          = "Wald",
-  pb_lfc_shrink    = TRUE,
-  pb_remove_outliers = TRUE,        # drop PCA-flagged outlier replicates
+  species = "human",
+  pseudobulk_unit = "patient_id",
+  min_replicates = 3,
+  pb_test = "Wald",
+  pb_lfc_shrink = TRUE,
+  pb_remove_outliers = TRUE, # drop PCA-flagged outlier replicates
   padj_cutoff_single_cell = 0.05,
-  padj_cutoff_pseudobulk  = 0.05
+  padj_cutoff_pseudobulk = 0.05
 )
 ```
 
@@ -241,11 +241,16 @@ render_child <- function(lines) {
 # `comparisons_list` is a list of scitargets_dea objects (see section 4).
 # Cross-comparison summaries, shown once:
 render_child(scitargets::composition_lines(
-  meta_name = "clinical_meta", state_col = "clusters_0.5"))
+  meta_name = "clinical_meta", state_col = "clusters_0.5"
+))
 render_child(scitargets::dea_upset_lines(
-  comparisons_list, obj_name = "comparisons_list", level = "single_cell"))
+  comparisons_list,
+  obj_name = "comparisons_list", level = "single_cell"
+))
 render_child(scitargets::dea_gsea_yield_lines(
-  comparisons_list, obj_name = "comparisons_list", level = "single_cell"))
+  comparisons_list,
+  obj_name = "comparisons_list", level = "single_cell"
+))
 
 # One block per comparison:
 for (nm in names(comparisons_list)) {
@@ -259,8 +264,10 @@ for (nm in names(comparisons_list)) {
 
 # Top differentially-expressed genes across all cells (needs the Seurat object):
 render_child(scitargets::dea_top_de_lines(
-  comparisons_list, seurat_obj = seurat_obj, seurat_name = "seurat_obj",
-  level = "single_cell", group_by = "clusters_0.5"))
+  comparisons_list,
+  seurat_obj = seurat_obj, seurat_name = "seurat_obj",
+  level = "single_cell", group_by = "clusters_0.5"
+))
 ```
 
 The generated chunks reference variables **by name** (e.g. `obj_name`,
@@ -303,25 +310,27 @@ list(
     command = {
       res <- scitargets::run_dea(
         seurat_obj = seurat_merged,
-        group_by   = comparisons$group_by,
+        group_by = comparisons$group_by,
         cluster_by = comparisons$cluster_by,
-        cluster    = comparisons$cluster,
-        group1     = comparisons$group1,
-        group2     = comparisons$group2,
-        level      = "both",
+        cluster = comparisons$cluster,
+        group1 = comparisons$group1,
+        group2 = comparisons$group2,
+        level = "both",
         gsea_params = list(pathways = gsea_gene_sets),
         pseudobulk_unit = "patient_id",
         pb_remove_outliers = TRUE
       )
       structure(
         list(res),
-        names = paste0(comparisons$group1, "__", comparisons$group2,
-                       "_", comparisons$cluster)
+        names = paste0(
+          comparisons$group1, "__", comparisons$group2,
+          "_", comparisons$cluster
+        )
       )
     },
     pattern = map(comparisons),
-    deployment = "main",  # keep the S7 object on the main process
-    format = "rds",       # S7 is not supported by qs2
+    deployment = "main", # keep the S7 object on the main process
+    format = "rds", # S7 is not supported by qs2
     description = "Differential expression per comparison"
   ),
   tar_target(

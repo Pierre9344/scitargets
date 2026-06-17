@@ -5,7 +5,13 @@ editor_options:
     wrap: 72
 ---
 
-# scitargets 1.5.0
+# scitargets 1.4.1
+
+- Better handling of numeric covariates for pseudobulk DESeq2 test (previously forcibly converted to character).
+
+- Added a message call warning agains interpretating pseudobulk GO/GSEA when using LRT test. They are still computed but the default Wald test should be used for GO/GSEA computations.
+
+- Better handling of GO p-values enrichment. Previously, the adjustment was only realized in the "top N" terms returned by topGO. Now the adjustment is done on all tested terms.
 
 # scitargets 1.4.0
 

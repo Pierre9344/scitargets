@@ -15,8 +15,9 @@ utils::globalVariables(c("nFeature_RNA", "percent.mt", "."))
 #' demultiplex_cell(path = ".", id = "my_project_id")
 #' }
 demultiplex_cell <- function(
-    obj = NULL,
-    default_seed = 1234) {
+  obj = NULL,
+  default_seed = 1234
+) {
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   }
@@ -147,8 +148,10 @@ demultiplex_cell <- function(
             }
             cell$hash.ID <- cell$MULTI_ID
             cell$MULTI_ID <- NULL
-          })
+          }
+        )
       })
-    })
+    }
+  )
   return(cell)
 }

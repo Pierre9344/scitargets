@@ -141,20 +141,20 @@ list(
         group.by = "clusters_0.5",
         random.seed = targets::tar_seed_get(),
         only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25
-        )
-      },
+      )
+    },
     description = "SC282_250730: Markers identified for the different cells clusters (clusters_0.5)"
-    ),
+  ),
   targets::tar_target_raw(
     name = seurat_obj_SC282_250730_azimuth,
     command = {
       scitargets::azimuth_annot_pbmc(
         seurat_obj_target_SC282_250730_singlets,
         "clusters_0.5"
-        )
-      },
+      )
+    },
     description = "SC282_250730: singlets cell with azimuth celltype annotation."
-    )
+  )
 )
 ```
 
@@ -184,7 +184,7 @@ seurat_obj_target_SC282_250730_singlets <- scitargets::extract_singlets(
 seurat_obj_SC282_250730_azimuth <- scitargets::azimuth_annot_pbmc(
   seurat_obj_target_SC282_250730_singlets,
   "clusters_0.5"
-  )
+)
 ```
 
 

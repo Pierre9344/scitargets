@@ -37,4 +37,3 @@
 #' @importFrom ggpubr annotate_figure
 #' @importFrom ggrepel geom_text_repel
 "_PACKAGE"
-
