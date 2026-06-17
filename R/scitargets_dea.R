@@ -2084,6 +2084,20 @@ top_de_heatmap <- function(seurat_obj, features, group_by = NULL) {
   if (length(features) == 0L) {
     return(.no_result_plot("No top DE genes available for the heatmap."))
   }
+  # Seurat::DoHeatmap() mismatches its internal label vectors when the grouping
+  # column has NA cells: it builds one x position per plotted cell but uses
+  # sort(group.use), and sort() silently drops NAs -> "differing number of rows"
+  # (off by the NA count). Keep only cells that have a non-missing group label.
+  if (!is.null(group_by) && group_by %in% colnames(seurat_obj[[]])) {
+    grp <- seurat_obj[[group_by]][, 1]
+    keep <- colnames(seurat_obj)[!is.na(grp)]
+    if (length(keep) == 0L) {
+      return(.no_result_plot("No cells with a non-missing group label for the heatmap."))
+    }
+    if (length(keep) < ncol(seurat_obj)) {
+      seurat_obj <- subset(seurat_obj, cells = keep)
+    }
+  }
   obj <- Seurat::ScaleData(seurat_obj, features = features, verbose = FALSE)
   Seurat::DoHeatmap(obj, features = features, group.by = group_by %||% "ident") +
     ggplot2::theme(axis.text.y = ggplot2::element_text(size = 6))

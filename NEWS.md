@@ -5,6 +5,8 @@ editor_options:
     wrap: 72
 ---
 
+# scitargets 1.5.0
+
 # scitargets 1.4.0
 
 For this release `Claude Code (Opus 4.8)` was used to speed up development. The code was manually checked and tested in a work project.

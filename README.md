@@ -1,6 +1,6 @@
 # scitargets <img src="man/figures/logo.png" align="right" height="99"/>
 
-The goal of scitargets is to help you analyse single-cell CITE-seq data by providing target factories and parametized report to deal with basic quality controls, HTO demultiplexing, and celltypes annotation.
+The goal of `scitargets` is to help you analyse single-cell data by providing a target factories for HTO demultiplexing and an associated parametized report. Other functions to realize differential analysi at single cell and pseudobulk levels are also present in the package.
 
 ## Installation
 
@@ -12,13 +12,13 @@ devtools::install_github("https://github.com/Pierre9344/scitargets", build_vigne
 # the first time you install the package, it may be necessary to set build_vignettes = F and then rerun devtools with build_vignettes = T
 ```
 
-scitargets requires Seurat\>=5.3.1. The version 1.4.0 of scitargets was coded using Seurat `5.5.0` and SeuratObject `5.4.0`.
+`scitargets` requires `Seurat\>=5.3.1`. The version `1.4.0` of `scitargets` was coded using `Seurat 5.5.0` and `SeuratObject 5.4.0`.
 
 Please note that the version `1.5`of `scitargets` was coded using assistance from `Claude Code (Opus 4.8)` The code was checked manually step by step and tested in one of my work project.
 
 ## Example
 
-1.  In Rstudio, create a new project using scitargets project template (File -\> New Project -\> New Directory -\> Project template for scitargets).
+1.  In Rstudio, create a new project using the scitargets project template (File -\> New Project -\> New Directory -\> Project template for scitargets).
 
 2.  Copy your cellranger output inside **"data/cellranger_output/"** folder. Create a subfolder for each run.
 
