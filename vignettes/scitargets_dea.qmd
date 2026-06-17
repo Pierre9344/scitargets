@@ -107,13 +107,35 @@ sensible standard analysis; the pseudobulk-specific arguments are ignored when
 
 -   `level` — `"single_cell"` (`Seurat::FindMarkers`), `"pseudobulk"` (`DESeq2`),
     or `"both"`.
--   `run_go` / `run_gsea` — toggle the GO and GSEA enrichment.
+-   `run_go` / `run_gsea` — toggle the GO and GSEA enrichment. GSEA is only
+    computed where its signed gene ranking is valid (otherwise a warning is
+    emitted and the report omits that level's GSEA tab): for **single cell** only
+    when the `FindMarkers` gene universe is unfiltered (`sc_logfc_threshold = 0`,
+    `sc_min_pct = 0`, `sc_only_pos = FALSE`); for **pseudobulk** only with
+    `pb_test = "Wald"` (genes ranked by the signed `DESeq2` Wald statistic). With
+    the defaults, single-cell GSEA is therefore skipped.
 -   `go_params` / `gsea_params` — named lists of GO / GSEA options (ontology,
     algorithm, cutoffs, plot size; the GSEA `pathways`, see below).
 -   `species` — `"human"` or `"mouse"`. This is the single source of truth for
     the GO annotation database (`org.Hs.eg.db` / `org.Mm.eg.db`) and the GSEA
     `msigdbr` species; it overrides any organism left in `go_params` /
     `gsea_params`.
+
+### Single-cell controls
+
+These map directly onto `Seurat::FindMarkers` and are ignored for the pseudobulk
+level.
+
+-   `sc_test_use` — the differential-expression test (`test.use`, default
+    `"wilcox"`).
+-   `sc_min_pct` / `sc_logfc_threshold` — minimum detection fraction (`min.pct`,
+    default 0.1) and minimum |log2FC| (`logfc.threshold`, default 0.25) for a gene
+    to be tested.
+-   `sc_only_pos` — keep only genes up in `group1` (`only.pos`, default `FALSE`).
+
+For single-cell GSEA, set all three to their unfiltered values
+(`sc_logfc_threshold = 0`, `sc_min_pct = 0`, `sc_only_pos = FALSE`) so the full
+gene ranking is available.
 
 ### Pseudobulk / DESeq2 model
 
@@ -123,10 +145,11 @@ sensible standard analysis; the pseudobulk-specific arguments are ignored when
     pseudobulk comparison to run; `min_cells_per_sample` drops thin replicates.
 -   `pb_test` — `"Wald"` or `"LRT"`.
 -   `pb_design` / `pb_reduced` — design and (LRT) reduced model formulas given
-    as character strings, passed to `DESeq2` via `as.formula`.
+    as character strings, passed to `DESeq2` via `as.formula`. Any covariate in
+    `pb_design` (e.g. `~ batch + group`) is looked up one value per replicate,
+    keyed on `pseudobulk_unit` (it must be constant within a replicate).
 -   `pb_low_count_filter = c(min_count, min_samples)` — pre-filter keeping genes
     with at least `min_count` counts in at least `min_samples` samples.
--   `pb_covariate_key` — a metadata column to adjust for as a covariate.
 -   `pb_lfc_shrink` — when `TRUE`, add a shrunken log2 fold-change (an
     `apeglm` → `ashr` → `normal` cascade; a message reports which was used).
 -   `pb_pca`, `pca_n_top_genes`, `pca_outlier_conf` — compute the pseudobulk PCA
@@ -139,7 +162,9 @@ sensible standard analysis; the pseudobulk-specific arguments are ignored when
 
 -   `padj_cutoff_single_cell` / `padj_cutoff_pseudobulk` (each default 0.05) are
     stored on the object and drive, for that level, the volcano cutoff line and
-    the GO foreground-gene selection.
+    the GO foreground-gene selection. `padj_cutoff_pseudobulk` is additionally
+    passed to `DESeq2::results(alpha = )`, so DESeq2's independent filtering is
+    optimised for that FDR threshold.
 
 ## Building the GSEA gene sets
 
@@ -172,6 +197,9 @@ res <- scitargets::run_dea(
   ),
   gsea_params = list(pathways = gsea_gene_sets),
   species = "human",
+  # single-cell GSEA needs the full gene ranking -> turn off the FindMarkers
+  # pre-filters (otherwise only pseudobulk Wald GSEA is computed):
+  sc_min_pct = 0, sc_logfc_threshold = 0, sc_only_pos = FALSE,
   pseudobulk_unit = "patient_id",
   min_replicates = 3,
   pb_test = "Wald",
@@ -219,8 +247,9 @@ scitargets::pca_plot(res, level = "pseudobulk")
 scitargets::go_barplot(res, direction = "up", ontology = "BP", level = "single_cell")
 
 # GSEA barplot. By default the bar shows the FDR-adjusted enrichment of each
-# gene set (sign(NES) * -log10(adjusted p)); the gene-level ranking fed to GSEA
-# always uses the raw per-gene p-value.
+# gene set (sign(NES) * -log10(adjusted p)). The gene-level ranking fed to GSEA
+# is the raw per-gene p-value for single cell (sign(log2FC) * -log10(p)) and the
+# signed DESeq2 Wald statistic for pseudobulk.
 scitargets::gsea_barplot(res, collection = "Hallmark", level = "single_cell")
 ```
 

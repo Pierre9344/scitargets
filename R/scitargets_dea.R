@@ -890,7 +890,7 @@ run_deseq2 <- function(counts, col_data, group1, group2,
       )
     }
 
-    message("LRT test was set for the pseudobulk DE analysis. Scitargets will try to compute GO and GSEA enrichment but be aware that it may over-interpret the enrichment! We recommand to use the default 'Wald' test.")
+    message("LRT test was set for the pseudobulk DE analysis. Scitargets will compute GO enrichment only (GSEA is skipped for LRT, as the LRT statistic is unsigned), but be aware that GO may over-interpret the enrichment! We recommand to use the default 'Wald' test.")
   }
 
   if (!"group" %in% all.vars(design_formula)) {
@@ -1043,9 +1043,9 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #' @param pb_low_count_filter Length-2 integer `c(count, n_samples)`: keep genes
 #'   whose count is `>= count` in at least `n_samples` pseudobulk samples (default
 #'   `c(10, 3)`). Pseudobulk level only; does not affect the single-cell level.
-#' @param pb_covariate_key Metadata column identifying one row per biological
-#'   replicate when building the DESeq2 `colData` for covariates referenced by
-#'   `pb_design` (default = `pseudobulk_unit`). Pseudobulk level only.
+#'   Covariates referenced by `pb_design` (e.g. `~ batch + group`) are looked up
+#'   one value per biological replicate, keyed on `pseudobulk_unit` (and an error is
+#'   raised if a covariate is not constant within a unit).
 #' @param pb_lfc_shrink Whether to report a shrunken log2 fold change for the
 #'   pseudobulk level (default TRUE), added as the `avg_log2FC_shrink` column
 #'   alongside the MLE `avg_log2FC`. Method cascade: apeglm (if installed) ->
@@ -1106,7 +1106,6 @@ run_dea <- function(seurat_obj,
                     pb_design = "~ group",
                     pb_reduced = "~ 1",
                     pb_low_count_filter = c(10L, 3L),
-                    pb_covariate_key = pseudobulk_unit,
                     pb_lfc_shrink = TRUE,
                     pb_pca = TRUE,
                     pca_n_top_genes = 500L,
@@ -1180,7 +1179,6 @@ run_dea <- function(seurat_obj,
     pb_design = pb_design,
     pb_reduced = pb_reduced,
     pb_low_count_filter = pb_low_count_filter,
-    pb_covariate_key = pb_covariate_key,
     pb_lfc_shrink = pb_lfc_shrink,
     pb_pca = pb_pca,
     pca_n_top_genes = pca_n_top_genes,
@@ -1325,7 +1323,6 @@ run_dea <- function(seurat_obj,
             test = pb_test, design = pb_design,
             reduced = pb_reduced,
             low_count_filter = pb_low_count_filter,
-            covariate_key = pb_covariate_key,
             shrinkage = pb_lfc_shrink,
             # DESeq2 independent filtering is optimised at this FDR cutoff; use the
             # object's per-level pseudobulk cutoff (stored on @padj_cutoffs).
@@ -1601,7 +1598,10 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
     signed_pval = "sign(NES) x p-value"
   )
 
-  sig <- sig[order(abs(sig$bar), decreasing = TRUE), , drop = FALSE]
+  # Select the top_n gene sets by significance, independent of the display metric.
+  # Ranking by abs(bar) would, for the "signed_pval" metric (bar = sign(NES) * pval),
+  # pick the LARGEST p-values (the weakest sets) instead of the strongest.
+  sig <- sig[order(sig$padj, sig$pval, na.last = TRUE), , drop = FALSE]
   if (nrow(sig) > tn) sig <- sig[seq_len(tn), , drop = FALSE]
 
   # The bar is colored by the group in which the gene set is enriched:

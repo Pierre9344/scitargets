@@ -1370,11 +1370,11 @@
 
 # Add design covariates to the pseudobulk colData. When `design` references
 # variables beyond `group` (e.g. "~ origin + group"), look up one value per
-# replicate from the cell metadata, taking the first row per `covariate_key`
-# (dplyr::filter(!duplicated(key))), and warn if a covariate is not constant
-# within a key. `col_data$unit` holds the (sanitized) pseudobulk_unit values, so
-# the lookup is joined on pseudobulk_unit.
-.dea_add_covariates <- function(col_data, md, design, covariate_key, pseudobulk_unit) {
+# replicate from the cell metadata, taking the first row per `pseudobulk_unit`
+# and erroring if a covariate is not constant within a unit. `col_data$unit` holds
+# the (sanitized) pseudobulk_unit values, so the lookup is joined on pseudobulk_unit
+# -- one covariate value per biological replicate.
+.dea_add_covariates <- function(col_data, md, design, pseudobulk_unit) {
   vars <- setdiff(all.vars(stats::as.formula(design)), "group")
 
   if (length(vars) == 0L) {
@@ -1383,9 +1383,6 @@
 
   if (!"unit" %in% colnames(col_data)) {
     stop("col_data must contain a 'unit' column.", call. = FALSE)
-  }
-  if (!covariate_key %in% colnames(md)) {
-    stop("covariate_key column '", covariate_key, "' not found in metadata.", call. = FALSE)
   }
   if (!pseudobulk_unit %in% colnames(md)) {
     stop("pseudobulk_unit column '", pseudobulk_unit, "' not found in metadata.", call. = FALSE)
@@ -1465,7 +1462,6 @@
                            design = "~ group",
                            reduced = "~ 1",
                            low_count_filter = c(10L, 3L),
-                           covariate_key = pseudobulk_unit,
                            shrinkage = TRUE,
                            alpha = 0.05,
                            drop_units = character()) {
@@ -1523,6 +1519,14 @@
   }
   col_data <- col_data[match(colnames(counts), col_data$sample), , drop = FALSE]
 
+  # Keep only the comparison samples (group1 vs the reference). Do not rely on
+  # PseudobulkExpression dropping NA / non-comparison cells -- make the DESeq2 input
+  # explicit and invariant to Seurat aggregation behaviour.
+  ref <- if (identical(group2, "rest")) "rest" else group2
+  keep_comparison <- !is.na(col_data$group) & col_data$group %in% c(group1, ref)
+  counts <- counts[, keep_comparison, drop = FALSE]
+  col_data <- col_data[keep_comparison, , drop = FALSE]
+
   # number of cells contributing to each pseudobulk sample (unit x group), so
   # that pseudobulk samples built from too few cells can be dropped.
   # PseudobulkExpression sanitizes the replicate-unit values (e.g. it prepends a
@@ -1563,7 +1567,6 @@
     col_data <- col_data[!drop, , drop = FALSE]
   }
 
-  ref <- if (identical(group2, "rest")) "rest" else group2
   n_per_group <- table(col_data$group)
   needed <- c(group1, ref)
   if (length(n_per_group) < 2L ||
@@ -1579,7 +1582,7 @@
   }
 
   # Add any design covariates (one row per replicate) before fitting.
-  col_data <- .dea_add_covariates(col_data, md, design, covariate_key, pseudobulk_unit)
+  col_data <- .dea_add_covariates(col_data, md, design, pseudobulk_unit)
 
   run_deseq2(counts, col_data,
     group1 = group1, group2 = ref,

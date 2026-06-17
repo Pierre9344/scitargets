@@ -23,6 +23,12 @@ editor_options:
 
 - Pseudobulk `DESeq2::results()` is now called with `alpha` set to the per-level pseudobulk adjusted-p cutoff (from the object's `padj_cutoffs`, default 0.05) instead of DESeq2's default 0.1, so independent filtering is optimised for the FDR threshold actually used downstream.
 
+- Hardened the pseudobulk DESeq2 input: the `colData` rows are aligned and named to the count-matrix columns before `DESeqDataSetFromMatrix()`; only the comparison samples (group1 vs the reference) are kept, rather than relying on Seurat to drop non-comparison cells; and design covariates are joined to pseudobulk samples by `pseudobulk_unit` (one value per replicate), erroring if a covariate is not constant within a unit.
+
+- Fixed `gsea_barplot()` top-N selection: gene sets are now chosen by significance (adjusted p, then p-value) rather than by the display metric, so the `"signed_pval"` metric no longer shows the least significant sets.
+
+- Removed the `pb_covariate_key` argument from `run_dea()`. Design covariates (referenced by `pb_design`) are now always joined to pseudobulk samples by `pseudobulk_unit` — one value per biological replicate — which is the only correct key for a DESeq2 replicate-level design.
+
 # scitargets 1.4.0
 
 For this release `Claude Code (Opus 4.8)` was used to speed up development. The code was manually checked and tested in a work project.
@@ -45,7 +51,7 @@ For this release `Claude Code (Opus 4.8)` was used to speed up development. The 
 
 - `run_dea()` analysis controls (pseudobulk / `DESeq2` unless noted):
 
-  - **DESeq2 model:** `pb_test` (`"Wald"` / `"LRT"`), `pb_design` and `pb_reduced` design formulas (character, passed via `as.formula`), `pb_low_count_filter = c(min_count, min_samples)` low-count pre-filter, and `pb_covariate_key` to adjust for a covariate. Per-group mean normalized counts are added to the result table.
+  - **DESeq2 model:** `pb_test` (`"Wald"` / `"LRT"`), `pb_design` and `pb_reduced` design formulas (character, passed via `as.formula`) and `pb_low_count_filter = c(min_count, min_samples)` low-count pre-filter. Covariates referenced by `pb_design` are looked up one value per biological replicate (keyed on `pseudobulk_unit`). Per-group mean normalized counts are added to the result table.
   - **Replicate gate:** `min_replicates` (default 3) — minimum biological replicates per group for a pseudobulk comparison to run.
   - **LFC shrinkage:** `pb_lfc_shrink` toggle; an `apeglm` -> `ashr` -> `normal` cascade adds a shrunken log2 fold-change, and a message reports which method was used.
   - **Pseudobulk PCA + outlier detection:** `pb_pca`, `pca_n_top_genes`, `pca_outlier_conf` — `DESeq2` VST -> PCA -> Mahalanobis outlier flagging (`mt::pca.outlier`). `pb_remove_outliers` drops the flagged replicates from the DESeq2 fit (re-checking the replicate gate afterwards).
