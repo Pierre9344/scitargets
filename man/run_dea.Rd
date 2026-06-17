@@ -20,6 +20,10 @@ run_dea(
   min_cells_per_group = 3L,
   min_replicates = 3L,
   min_cells_per_sample = 10L,
+  sc_min_pct = 0.1,
+  sc_logfc_threshold = 0.25,
+  sc_test_use = "wilcox",
+  sc_only_pos = FALSE,
   pb_test = c("Wald", "LRT"),
   pb_design = "~ group",
   pb_reduced = "~ 1",
@@ -63,6 +67,24 @@ run_dea(
 thresholds for the single-cell and pseudobulk levels. \code{min_replicates}
 (pseudobulk only; default 3) is the minimum number of biological replicates
 (\code{pseudobulk_unit}) required per group.}
+
+\item{sc_min_pct}{Single-cell level only: minimum fraction of cells (in
+either group) expressing a gene for it to be tested, passed to
+\code{\link[Seurat:FindMarkers]{Seurat::FindMarkers()}} as \code{min.pct} (default 0.1).}
+
+\item{sc_logfc_threshold}{Single-cell level only: minimum absolute log2 fold
+change for a gene to be tested, passed to \code{\link[Seurat:FindMarkers]{Seurat::FindMarkers()}} as
+\code{logfc.threshold} (default 0.25).}
+
+\item{sc_test_use}{Single-cell level only: the differential-expression test
+used by \code{\link[Seurat:FindMarkers]{Seurat::FindMarkers()}} (its \code{test.use}, default "wilcox").}
+
+\item{sc_only_pos}{Single-cell level only: whether to return only
+positively-regulated (up in \code{group1}) genes, passed to
+\code{\link[Seurat:FindMarkers]{Seurat::FindMarkers()}} as \code{only.pos} (default FALSE = both directions).
+Leave FALSE for the standard two-sided analysis; setting it TRUE drops the
+down-regulated genes, so the volcano and the "down" GO/GSEA outputs are
+empty for this level.}
 
 \item{pb_test}{Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk level only.
 Use \code{"Wald"} for the standard pairwise group1-vs-group2 analysis and for downstream signed GO/GSEA.

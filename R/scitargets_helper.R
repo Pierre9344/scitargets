@@ -481,7 +481,7 @@
   # scored GO terms for that ontology, not only the displayed top_nodes terms.
   res_table$adjpval <- stats::p.adjust(res_table$pval, method = "BH")
 
-  res_table <- res_table[!is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, drop = FALSE]
+  res_table <- res_table[!is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, , drop = FALSE]
 
   if (nrow(res_table) == 0L) {
     out <- .empty_go_result("No GO terms passed the adjusted p-value threshold.", direction, params)
@@ -593,17 +593,19 @@
 # Single-cell differential expression with Seurat::FindMarkers.
 # `group_col` is the metadata column holding the two idents to compare.
 .de_single_cell <- function(seurat_obj, group_col, ident.1, ident.2,
+                            min_pct = 0.1, logfc_threshold = 0.25, test_use = "wilcox",
+                            only_pos = FALSE,
                             assay = "SCT", seed = 5114L, recorrect_umi = TRUE) {
   markers <- Seurat::FindMarkers(
     seurat_obj,
     assay = assay,
-    test.use = "wilcox",
+    test.use = test_use,
     group.by = group_col,
     ident.1 = ident.1,
     ident.2 = ident.2,
-    only.pos = FALSE,
-    min.pct = 0.1,
-    logfc.threshold = 0.25,
+    only.pos = only_pos,
+    min.pct = min_pct,
+    logfc.threshold = logfc_threshold,
     random.seed = seed,
     recorrect_umi = recorrect_umi
   )

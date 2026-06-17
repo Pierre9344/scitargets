@@ -989,20 +989,6 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #'   thresholds for the single-cell and pseudobulk levels. `min_replicates`
 #'   (pseudobulk only; default 3) is the minimum number of biological replicates
 #'   (`pseudobulk_unit`) required per group.
-#' @param sc_min_pct Single-cell level only: minimum fraction of cells (in
-#'   either group) expressing a gene for it to be tested, passed to
-#'   [Seurat::FindMarkers()] as `min.pct` (default 0.1).
-#' @param sc_logfc_threshold Single-cell level only: minimum absolute log2 fold
-#'   change for a gene to be tested, passed to [Seurat::FindMarkers()] as
-#'   `logfc.threshold` (default 0.25).
-#' @param sc_test_use Single-cell level only: the differential-expression test
-#'   used by [Seurat::FindMarkers()] (its `test.use`, default "wilcox").
-#' @param sc_only_pos Single-cell level only: whether to return only
-#'   positively-regulated (up in `group1`) genes, passed to
-#'   [Seurat::FindMarkers()] as `only.pos` (default FALSE = both directions).
-#'   Leave FALSE for the standard two-sided analysis; setting it TRUE drops the
-#'   down-regulated genes, so the volcano and the "down" GO/GSEA outputs are
-#'   empty for this level.
 #' @param pb_test Pseudobulk DESeq2 test: "Wald" (default) or "LRT". Pseudobulk level only.
 #'   Use `"Wald"` for the standard pairwise group1-vs-group2 analysis and for downstream signed GO/GSEA.
 #'   "LRT"` is intended for testing the contribution of `group` relative to a reduced model; when using `"LRT"`, `pb_reduced` should retain all non-group covariates from `pb_design`.
@@ -1071,7 +1057,6 @@ run_dea <- function(seurat_obj,
                     sc_min_pct = 0.1,
                     sc_logfc_threshold = 0.25,
                     sc_test_use = "wilcox",
-                    sc_only_pos = FALSE,
                     pb_test = c("Wald", "LRT"),
                     pb_design = "~ group",
                     pb_reduced = "~ 1",
@@ -1139,11 +1124,10 @@ run_dea <- function(seurat_obj,
     min_cells_per_group = min_cells_per_group,
     min_replicates = min_replicates,
     min_cells_per_sample = min_cells_per_sample,
-    sc_test = sc_test_use,
+    sc_test = "wilcox",
     sc_assay = assay_sc,
-    sc_min.pct = sc_min_pct,
-    sc_logfc.threshold = sc_logfc_threshold,
-    sc_only.pos = sc_only_pos,
+    sc_min.pct = 0.1,
+    sc_logfc.threshold = 0.25,
     sc_recorrect_umi = recorrect_umi,
     pb_method = "DESeq2",
     pb_test = pb_test,
@@ -1269,8 +1253,6 @@ run_dea <- function(seurat_obj,
           # model state stays intact. `recorrect_umi` (run_dea arg) is forwarded.
           .de_single_cell(seurat_obj, ".dea_group",
             ident.1 = group1, ident.2 = ref,
-            min_pct = sc_min_pct, logfc_threshold = sc_logfc_threshold,
-            test_use = sc_test_use, only_pos = sc_only_pos,
             assay = assay_sc, seed = seed,
             recorrect_umi = recorrect_umi
           )

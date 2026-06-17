@@ -9,6 +9,8 @@ editor_options:
 
 - Better handling of numeric covariates for pseudobulk DESeq2 test (previously forcibly converted to character).
 
+- Added parameters to run_dea to allow the user to set `Seurat::FindMarkers` test.use, group.by, only.pos, min.pct, and logfc.threshold inputs.
+
 - Added a message call warning agains interpretating pseudobulk GO/GSEA when using LRT test. They are still computed but the default Wald test should be used for GO/GSEA computations.
 
 - Better handling of GO p-values enrichment. Previously, the adjustment was only realized in the "top N" terms returned by topGO. Now the adjustment is done on all tested terms.
