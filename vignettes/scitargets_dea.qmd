@@ -21,6 +21,8 @@ knitr:
 #| label: setup
 #| message: false
 #| warning: false
+#| eval: false
+#| include: true
 library(scitargets)
 ```
 
@@ -65,6 +67,8 @@ The workflow has three steps:
 when it has at least `min_cells_per_group` cells.
 
 ```{r}
+#| eval: false
+#| include: true
 comparisons <- scitargets::dea_comparisons(
   meta = seurat_obj@meta.data,
   group_by = "condition", # metadata column holding the biological groups
@@ -86,6 +90,8 @@ The result is a `data.frame`-like object with the parallel vectors `group_by`,
 object. The minimal call:
 
 ```{r}
+#| eval: false
+#| include: true
 res <- scitargets::run_dea(
   seurat_obj = seurat_obj,
   group_by   = "condition",
@@ -172,6 +178,8 @@ GSEA needs a list of pathways. `get_msigdbr_pathways()` builds it from MSigDB an
 you pass it through `gsea_params`:
 
 ```{r}
+#| eval: false
+#| include: true
 gsea_gene_sets <- scitargets::get_msigdbr_pathways(
   collections = c("Hallmark", "GO:BP", "C7:ImmuneSigDB"),
   species = "Homo sapiens"
@@ -181,6 +189,8 @@ gsea_gene_sets <- scitargets::get_msigdbr_pathways(
 ## A fuller example
 
 ```{r}
+#| eval: false
+#| include: true
 res <- scitargets::run_dea(
   seurat_obj = seurat_obj,
   group_by = "condition",
@@ -193,7 +203,7 @@ res <- scitargets::run_dea(
   run_gsea = TRUE,
   go_params = list(
     ontology = "BP", algorithm = "weight01", statistic = "fisher",
-    p_adj_cutoff = 0.05, min_signif_genes = 5, plot_number = 20
+    p_adj_cutoff = 0.05, min_signif_genes = 5, top_nodes = 20
   ),
   gsea_params = list(pathways = gsea_gene_sets),
   species = "human",
@@ -219,6 +229,8 @@ single object, a list, or a named branch into a plain list of objects.
 ## Tables
 
 ```{r}
+#| eval: false
+#| include: true
 # Differential-expression table for a level.
 scitargets::markers_table(res, level = "single_cell")
 scitargets::markers_table(res, level = "pseudobulk")
@@ -236,6 +248,8 @@ Every plot is a static `ggplot2` figure by default; pass `interactive = TRUE`
 to get a `ggiraph` version with per-element tooltips.
 
 ```{r}
+#| eval: false
+#| include: true
 # Volcano (the cutoff line uses the level's stored padj cutoff).
 scitargets::volcano_plot(res, level = "single_cell")
 scitargets::volcano_plot(res, level = "single_cell", interactive = TRUE)
@@ -262,6 +276,8 @@ GSEA tabsets); the cross-comparison companions take the **list** of comparisons
 and are shown once per document.
 
 ```{r}
+#| eval: false
+#| include: true
 # Helper that knits generated lines into the current document.
 render_child <- function(lines) {
   cat(knitr::knit_child(text = lines, quiet = TRUE), sep = "\n")
@@ -306,6 +322,8 @@ where the child is knit.
 ## Export to xlsx
 
 ```{r}
+#| eval: false
+#| include: true
 scitargets::write_dea_xlsx(res, out_dir = "./out/clinical_markers")
 ```
 
@@ -321,6 +339,8 @@ matter (see also the *Get started* and *Targets factories* vignettes):
     the name makes the comparison easy to find in the report.
 
 ```{r}
+#| eval: false
+#| include: true
 list(
   # `seurat_merged` and `merged_meta` come from upstream targets (see the
   # "Get started" vignette for a minimal multi-run merge).

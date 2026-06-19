@@ -237,7 +237,7 @@ S7::method(markers_table, scitargets_dea) <- function(x, level = NULL, ...) {
 }
 
 S7::method(go_table, scitargets_dea) <- function(x,
-                                                 direction = c("up", "down"),
+                                                 direction = c("up", "down", "all"),
                                                  ontology = NULL,
                                                  level = NULL,
                                                  ...) {
@@ -247,7 +247,7 @@ S7::method(go_table, scitargets_dea) <- function(x,
 }
 
 S7::method(go_plot_data, scitargets_dea) <- function(x,
-                                                     direction = c("up", "down"),
+                                                     direction = c("up", "down", "all"),
                                                      ontology = NULL,
                                                      level = NULL,
                                                      ...) {
@@ -257,7 +257,7 @@ S7::method(go_plot_data, scitargets_dea) <- function(x,
 }
 
 S7::method(go_genes_html, scitargets_dea) <- function(x,
-                                                      direction = c("up", "down"),
+                                                      direction = c("up", "down", "all"),
                                                       ontology = NULL,
                                                       level = NULL,
                                                       ...) {
@@ -439,7 +439,7 @@ S7::method(pca_plot, scitargets_dea) <- function(x,
 }
 
 S7::method(go_barplot, scitargets_dea) <- function(x,
-                                                   direction = c("up", "down"),
+                                                   direction = c("up", "down", "all"),
                                                    ontology = NULL,
                                                    level = NULL,
                                                    interactive = FALSE,
@@ -461,7 +461,11 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
     "background: ", length(res$background_genes),
     " ; foreground: ", length(res$foreground_genes)
   )
-  title <- paste0("GO:", onto_label, " enrichment in ", direction, "-regulated genes")
+  title <- if (identical(direction, "all")) {
+    paste0("GO:", onto_label, " enrichment in all DE genes")
+  } else {
+    paste0("GO:", onto_label, " enrichment in ", direction, "-regulated genes")
+  }
 
   # ggiraph: per-bar tooltip with the term, raw + adjusted p-value, enrichment
   # score and the foreground genes annotated to the term.
@@ -520,7 +524,7 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
 }
 
 S7::method(go_cnetplot, scitargets_dea) <- function(x,
-                                                    direction = c("up", "down"),
+                                                    direction = c("up", "down", "all"),
                                                     ontology = NULL,
                                                     level = NULL,
                                                     interactive = TRUE,
@@ -611,16 +615,21 @@ S7::method(dea_write_xlsx, scitargets_dea) <- function(x, out_dir = "./out/clini
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
   path <- file.path(out_dir, .dea_xlsx_filename(x))
-  wb <- openxlsx::createWorkbook()
+  wb <- openxlsx2::wb_workbook()
 
-  .write_summary_sheet(wb, x)
-
-  level_prefix <- c(single_cell = "sc", pseudobulk = "pb")
   onto <- .dea_ontologies(x)
   write_levels <- if (is.null(levels)) .dea_levels(x) else intersect(levels, .dea_levels(x))
 
+  .write_summary_sheet(wb, x, shown_levels = write_levels)
+
+  # Prefix the per-level sheet names only when several levels share one workbook
+  # (avoids sc_markers / pb_markers collisions). A per-level file -- the
+  # write_dea_xlsx() default -- needs no prefix.
+  level_prefix <- c(single_cell = "sc", pseudobulk = "pb")
+  multi_level <- length(write_levels) > 1L
+
   for (level in write_levels) {
-    prefix <- level_prefix[[level]] %||% level
+    prefix <- if (multi_level) level_prefix[[level]] %||% level else NULL
 
     .write_table_sheet(
       wb,
@@ -628,7 +637,7 @@ S7::method(dea_write_xlsx, scitargets_dea) <- function(x, out_dir = "./out/clini
       data = markers_table(x, level = level)
     )
 
-    for (direction in c("up", "down")) {
+    for (direction in c("up", "down", "all")) {
       for (o in onto) {
         res <- .dea_go_result(x, level = level, direction = direction, ontology = o)
         reason <- if (is.null(res)) NA_character_ else res$reason
@@ -661,7 +670,7 @@ S7::method(dea_write_xlsx, scitargets_dea) <- function(x, out_dir = "./out/clini
     }
   }
 
-  openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  openxlsx2::wb_save(wb, path, overwrite = TRUE)
   path
 }
 
@@ -1135,6 +1144,9 @@ run_dea <- function(seurat_obj,
   params$organism <- sp$organism
   params$org_db <- sp$org_db
   gparams$species <- sp$msigdbr
+  # GSEA plots share the GO `top_nodes` cap (number of terms/sets shown in plots)
+  # unless the user set `top_nodes` explicitly in gsea_params -- one knob for both.
+  if (is.null(gsea_params$top_nodes)) gparams$top_nodes <- params$top_nodes
   # the (potentially large) pathway list is not stored inside the object
   gparams_store <- gparams
   gparams_store$pathways <- NULL
@@ -1573,13 +1585,16 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
   tab <- res$res.table
   params <- res$params
   pc <- padj_cutoff %||% params$padj_cutoff %||% 0.05
-  tn <- top_n %||% params$plot_number %||% 20L
+  tn <- top_n %||% params$top_nodes %||% 20L
 
   sig <- tab[!is.na(tab$padj) & tab$padj < pc, , drop = FALSE]
-  subtitle <- paste0("padj < ", pc)
+  subtitle <- paste0("gene sets with adjusted p-value < ", pc)
   if (nrow(sig) == 0L) {
     sig <- tab[!is.na(tab$pval), , drop = FALSE]
-    subtitle <- "no gene set passed padj cutoff; showing top by p-value"
+    subtitle <- paste0(
+      "no gene set passed the adjusted p-value < ", pc,
+      " cutoff; showing the top gene sets by raw p-value"
+    )
   }
   if (nrow(sig) == 0L) {
     return(.no_result_plot(res$reason %||% "No GSEA gene set to display."))
@@ -1690,11 +1705,16 @@ composition_plot <- function(meta,
                              group_col = "cohort_clinic_preterrah",
                              patient_col = "patient_id",
                              interactive = FALSE,
-                             width_svg = 12,
+                             width_svg = NULL,
                              height_svg = 6) {
   comp <- .cell_state_composition(meta, state_col, group_col, patient_col)
   if (nrow(comp) == 0L) {
     return(.no_result_plot("No cells available for the composition plot."))
+  }
+  # Scale the (interactive) canvas width with the number of samples so the bars
+  # stay readable when there are many patients.
+  if (is.null(width_svg)) {
+    width_svg <- max(10, ceiling(0.45 * length(unique(comp$patient))))
   }
   comp$tooltip <- paste0(
     "Patient: ", comp$patient, "\nGroup: ", comp$group,
@@ -1718,7 +1738,9 @@ composition_plot <- function(meta,
     ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
-      legend.position = "bottom"
+      # No legend: with many cell states it dominates the plot; the interactive
+      # tooltips carry the state instead.
+      legend.position = "none"
     )
 
   if (isTRUE(interactive)) {
@@ -1761,10 +1783,15 @@ composition_boxplot <- function(meta,
                                 patient_col = "patient_id",
                                 interactive = FALSE,
                                 width_svg = 12,
-                                height_svg = 7) {
+                                height_svg = NULL) {
   comp <- .cell_state_composition(meta, state_col, group_col, patient_col)
   if (nrow(comp) == 0L) {
     return(.no_result_plot("No cells available for the composition boxplot."))
+  }
+  # Two facet columns; scale the (interactive) canvas height with the number of
+  # cell-state facet rows so each panel stays readable when there are many states.
+  if (is.null(height_svg)) {
+    height_svg <- max(6, ceiling(length(unique(comp$state)) / 2) * 3L)
   }
   comp$tooltip <- paste0(
     "Patient: ", comp$patient, "\nGroup: ", comp$group,
@@ -1774,7 +1801,7 @@ composition_boxplot <- function(meta,
 
   base <- ggplot2::ggplot(comp, ggplot2::aes(x = group, y = proportion)) +
     ggplot2::geom_boxplot(ggplot2::aes(fill = group), outlier.shape = NA, alpha = 0.5) +
-    ggplot2::facet_wrap(~state, scales = "free_y") +
+    ggplot2::facet_wrap(~state, ncol = 2, scales = "free_y") +
     ggplot2::labs(
       x = NULL, y = "Proportion of cells", fill = "Group",
       title = "Cell-state proportion by clinical group",
@@ -2649,4 +2676,63 @@ dea_report_lines <- function(x,
   }
 
   c(header_lines, comp_lines, body)
+}
+
+#' Build the "DEA Comparisons" report section (all comparisons as child tabs)
+#'
+#' Emits one report section -- a parent tab holding every comparison's
+#' [dea_report_lines()] block as a nested child tab -- analogous to the single
+#' tab that [composition_lines()] or [dea_testability_lines()] each produce. Call
+#' it once instead of looping [dea_report_lines()] by hand, so the per-comparison
+#' tabs are grouped under a single "DEA Comparisons" tab (a sibling of the
+#' "Cell-state composition", "Testability summary", ... tabs).
+#'
+#' The generated per-comparison chunks reference each object as
+#' `obj_name[["<comparison name>"]]`, so only the LIST variable (`obj_name`) needs
+#' to be bound in the environment passed to [knitr::knit_child()].
+#'
+#' @param x A named list of [scitargets_dea] objects (or anything
+#'   [normalize_dea_list()] accepts that yields names). The names index the
+#'   chunks and label the child tabs.
+#' @param obj_name Name of the LIST variable bound in the knit environment
+#'   (default "clinical_comparisons").
+#' @param heading,heading_level Parent-tab heading text / markdown level (the
+#'   per-comparison tabs are nested one level below).
+#' @param fig_id_prefix Prefix used to build each comparison's chunk-label id.
+#' @param ... Passed on to [dea_report_lines()] for every comparison (e.g.
+#'   `cluster_word`, `levels`, `meta`, `interactive_plots`, `clusters_to_show`,
+#'   `groups_to_show`, `gsea_metric`).
+#' @returns A character vector of Quarto/knitr lines, or `character()` when no
+#'   comparison is shown (e.g. all filtered out).
+#' @export
+dea_comparisons_lines <- function(x,
+                                  obj_name = "clinical_comparisons",
+                                  heading = "DEA Comparisons",
+                                  heading_level = 2L,
+                                  fig_id_prefix = "cmp",
+                                  ...) {
+  x_list <- normalize_dea_list(x)
+  nms <- names(x_list)
+  if (length(x_list) == 0L || is.null(nms) || any(!nzchar(nms))) {
+    stop("`x` must be a named list of scitargets_dea objects.", call. = FALSE)
+  }
+
+  inner <- character()
+  for (nm in nms) {
+    inner <- c(inner, dea_report_lines(
+      x_list[[nm]],
+      fig_id = .dea_sanitize_id(fig_id_prefix, nm),
+      obj_name = sprintf("%s[[%s]]", obj_name, shQuote(nm)),
+      heading_level = heading_level + 1L,
+      ...
+    ))
+  }
+
+  # Nothing to show (e.g. every comparison filtered out): omit the whole tab.
+  if (length(inner) == 0L) {
+    return(character())
+  }
+
+  h <- paste(rep("#", heading_level), collapse = "")
+  c(paste(h, heading), "", "::: {.panel-tabset}", "", inner, ":::", "")
 }

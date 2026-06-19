@@ -29,6 +29,10 @@ editor_options:
 
 - Removed the `pb_covariate_key` argument from `run_dea()`. Design covariates (referenced by `pb_design`) are now always joined to pseudobulk samples by `pseudobulk_unit` — one value per biological replicate — which is the only correct key for a DESeq2 replicate-level design.
 
+- The xlsx export (`write_dea_xlsx` / `dea_write_xlsx`) now uses `openxlsx2` instead of the unmaintained `openxlsx`. The "summary" sheet's "Comparison summary" block renames `levels` to `computed_levels` (all levels computed for the comparison) and adds `level_in_document` (the level written in this file); the `reason` row is shown only when non-empty. Per-level files no longer prefix sheet names with `sc_`/`pb_` (the prefix is kept only when several levels share one workbook).
+
+- Report generation: new `dea_comparisons_lines()` groups every comparison's `dea_report_lines()` block under a single **"DEA Comparisons"** tab (each comparison a nested child tab), as a sibling of the cell-state-composition / testability tabs, instead of looping `dea_report_lines()` by hand. The comparison "Comparison summary" tab now renders its cell-count tables with `DT2`. `composition_plot()` drops its (large) legend and scales the canvas width with the number of samples (the interactive `ggiraph` tooltip carries the cell state); `composition_boxplot()` lays its facets out in two columns and scales height with the number of cell states. `gsea_barplot()`'s subtitle is more explicit ("gene sets with adjusted p-value < ...").
+
 # scitargets 1.4.0
 
 For this release `Claude Code (Opus 4.8)` was used to speed up development. The code was manually checked and tested in a work project.

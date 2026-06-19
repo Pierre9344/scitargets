@@ -11,7 +11,7 @@ composition_boxplot(
   patient_col = "patient_id",
   interactive = FALSE,
   width_svg = 12,
-  height_svg = 7
+  height_svg = NULL
 )
 }
 \arguments{

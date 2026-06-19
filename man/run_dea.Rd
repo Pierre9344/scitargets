@@ -28,7 +28,6 @@ run_dea(
   pb_design = "~ group",
   pb_reduced = "~ 1",
   pb_low_count_filter = c(10L, 3L),
-  pb_covariate_key = pseudobulk_unit,
   pb_lfc_shrink = TRUE,
   pb_pca = TRUE,
   pca_n_top_genes = 500L,
@@ -111,11 +110,10 @@ when \code{pb_test = "LRT"}. Pseudobulk level only.}
 
 \item{pb_low_count_filter}{Length-2 integer \code{c(count, n_samples)}: keep genes
 whose count is \verb{>= count} in at least \code{n_samples} pseudobulk samples (default
-\code{c(10, 3)}). Pseudobulk level only; does not affect the single-cell level.}
-
-\item{pb_covariate_key}{Metadata column identifying one row per biological
-replicate when building the DESeq2 \code{colData} for covariates referenced by
-\code{pb_design} (default = \code{pseudobulk_unit}). Pseudobulk level only.}
+\code{c(10, 3)}). Pseudobulk level only; does not affect the single-cell level.
+Covariates referenced by \code{pb_design} (e.g. \code{~ batch + group}) are looked up
+one value per biological replicate, keyed on \code{pseudobulk_unit} (and an error is
+raised if a covariate is not constant within a unit).}
 
 \item{pb_lfc_shrink}{Whether to report a shrunken log2 fold change for the
 pseudobulk level (default TRUE), added as the \code{avg_log2FC_shrink} column

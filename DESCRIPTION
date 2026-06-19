@@ -31,7 +31,7 @@ Imports:
     scales,
     purrr,
     S7,
-    openxlsx,
+    openxlsx2,
     DESeq2,
     fgsea,
     msigdbr,

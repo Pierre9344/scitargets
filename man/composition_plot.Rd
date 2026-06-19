@@ -10,7 +10,7 @@ composition_plot(
   group_col = "cohort_clinic_preterrah",
   patient_col = "patient_id",
   interactive = FALSE,
-  width_svg = 12,
+  width_svg = NULL,
   height_svg = 6
 )
 }

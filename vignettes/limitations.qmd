@@ -16,14 +16,6 @@ knitr:
     comment: '#>'
 ---
 
-```{r}
-#| label: setup
-#| warning: false
-#| message: false
-#| include: false
-library(scitargets)
-```
-
 # Limitations
 
 ## Change in scitargets are not detected by targets.
@@ -41,7 +33,9 @@ targets::tar_make() # 2. relaunch the pipeline
 quarto::quarto_render(".") # 3. recompile the report
 ```
 
-## scitargets_dea objects and the qs2 format
+## scitargets_dea objects, the qs2 format, and targets branching
 
-The `scitargets_dea` objects produced by `run_dea()` are S7 objects, which the default `qs2` save format does not support. Store the targets that hold them with `format = "rds"` (and, when the target is mapped over the comparisons, return them wrapped in a named one-element list — see the *scitargets_dea* vignette). This is slower and larger on disk than `qs2`, but required for the objects to round-trip correctly.
+- The `scitargets_dea` objects produced by `run_dea()` are S7 objects, which the default `qs2` save format does not support. Store the targets that hold them with `format = "rds"` (and, when the target is mapped over the comparisons, return them wrapped in a named one-element list — see the *scitargets_dea* vignette). This is slower and larger on disk than `qs2`, but required for the objects to round-trip correctly.
+
+- When launcing the `scitargets::run_dea` function inside targets with static branching, I observed that some of the dispatched branch could fail forcing me to relaunch `targets::tar_make` which removed the gain of time obtained by settings multiple workers. I'm currently investigating the reasons of this behavior. For now, I recommand to set the targets step that call this function to `deployment = "main"`.
 

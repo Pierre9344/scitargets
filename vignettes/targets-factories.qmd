@@ -22,9 +22,10 @@ knitr:
 
 ```{r}
 #| label: setup
-#| include: false
 #| message: false
 #| warning: false
+#| eval: false
+#| include: true
 library(scitargets)
 ```
 

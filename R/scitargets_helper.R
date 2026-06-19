@@ -20,6 +20,8 @@
   DT2::dt2(
     as.data.frame(data),
     extensions = "Buttons",
+    compact = TRUE,
+    height = NULL,
     options = list(
       pageLength = page_length,
       layout = list(topEnd = list(buttons = buttons))
@@ -52,11 +54,10 @@
     ontology = "BP",
     statistic = "fisher",
     algorithm = "weight01",
-    top_nodes = 50L,
+    top_nodes = 20L,
     num_char = 100L,
     p_adj_cutoff = 0.05,
     min_signif_genes = 5L,
-    plot_number = 20L,
     node_size = 10L,
     min_foreground_genes = 1L,
     cnet_layout_seed = 5114L,
@@ -207,7 +208,7 @@
 # GO computation
 # -----------------------------------------------------------------------------
 
-.prepare_go_plot_data <- function(res_table, min_signif_genes, plot_number) {
+.prepare_go_plot_data <- function(res_table, min_signif_genes, top_nodes) {
   if (is.null(res_table) || nrow(res_table) == 0L) {
     return(data.frame())
   }
@@ -225,8 +226,8 @@
   }
 
   gop <- gop[order(gop$adjpval, decreasing = FALSE), , drop = FALSE]
-  if (nrow(gop) > plot_number) {
-    gop <- gop[seq_len(plot_number), , drop = FALSE]
+  if (nrow(gop) > top_nodes) {
+    gop <- gop[seq_len(top_nodes), , drop = FALSE]
   }
 
   gop$Term_wrapped <- stringr::str_wrap(gop$Term, width = 35)
@@ -264,7 +265,7 @@
   paste(lines, collapse = "<br/>")
 }
 
-.build_cnet_data <- function(res_table, min_signif_genes, plot_number, layout_seed = 5114L) {
+.build_cnet_data <- function(res_table, min_signif_genes, top_nodes, layout_seed = 5114L) {
   if (
     is.null(res_table) ||
       nrow(res_table) == 0L ||
@@ -287,8 +288,8 @@
   }
 
   cnet_tab <- cnet_tab[order(cnet_tab$adjpval, decreasing = FALSE), , drop = FALSE]
-  if (nrow(cnet_tab) > plot_number) {
-    cnet_tab <- cnet_tab[seq_len(plot_number), , drop = FALSE]
+  if (nrow(cnet_tab) > top_nodes) {
+    cnet_tab <- cnet_tab[seq_len(top_nodes), , drop = FALSE]
   }
 
   if (nrow(cnet_tab) == 0L) {
@@ -455,7 +456,8 @@
 
   # Request all scored terms from GenTable so that the adjusted p-values are
   # computed over all tested terms. The final table is capped to params$top_nodes
-  # only after p-value adjustment and significance filtering.
+  # only after p-value adjustment (the top-N terms by adjusted p-value are kept,
+  # whether or not they pass the cutoff).
   res_table <- topGO::GenTable(
     GOdata,
     pval = res_result,
@@ -481,25 +483,18 @@
   # scored GO terms for that ontology, not only the displayed top_nodes terms.
   res_table$adjpval <- stats::p.adjust(res_table$pval, method = "BH")
 
-  res_table <- res_table[!is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, , drop = FALSE]
-
-  if (nrow(res_table) == 0L) {
-    out <- .empty_go_result("No GO terms passed the adjusted p-value threshold.", direction, params)
-    out$foreground_genes <- fg.genes
-    out$background_genes <- bg.genes
-    if (isTRUE(params$keep_topgo_data)) out$GOdata <- GOdata
-    return(out)
-  }
-
-  # Deterministic ordering before truncating the final output.
+  # Deterministic ordering of ALL scored terms before truncating the display table.
   res_table <- res_table[
     order(res_table$adjpval, res_table$pval, res_table$GO.ID), ,
     drop = FALSE
   ]
 
-  # The final GO table should not show more than params$top_nodes rows.
-  top_nodes <- min(params$top_nodes, nrow(res_table))
-  res_table <- res_table[seq_len(top_nodes), , drop = FALSE]
+  # Keep the topGO table even when nothing passes the adjusted p-value cutoff: cut
+  # to the top N terms (N = params$top_nodes). The cutoff-passing terms (used for
+  # the plots, below) are the prefix of this ordering, so they remain a subset of
+  # the displayed table.
+  n_keep <- min(params$top_nodes, nrow(res_table))
+  res_table <- res_table[seq_len(n_keep), , drop = FALSE]
 
   res_table$Annotated <- suppressWarnings(as.numeric(res_table$Annotated))
   res_table$Significant <- suppressWarnings(as.numeric(res_table$Significant))
@@ -530,22 +525,35 @@
   rownames(res_table) <- NULL
   res_table <- dplyr::relocate(res_table, Genes, .after = Enrichment)
 
+  # Plots (barplot / network / genes-terms) only use terms that pass the adjusted
+  # p-value cutoff, as before. These are the prefix of the ordered display table.
+  signif_rows <- res_table[
+    !is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, ,
+    drop = FALSE
+  ]
+
   plot_data <- .prepare_go_plot_data(
-    res_table = res_table,
+    res_table = signif_rows,
     min_signif_genes = params$min_signif_genes,
-    plot_number = params$plot_number
+    top_nodes = params$top_nodes
   )
 
   cnet_data <- .build_cnet_data(
-    res_table = res_table,
+    res_table = signif_rows,
     min_signif_genes = params$min_signif_genes,
-    plot_number = params$plot_number,
+    top_nodes = params$top_nodes,
     layout_seed = params$cnet_layout_seed
   )
 
+  reason <- if (nrow(signif_rows) == 0L) {
+    "No GO terms passed the adjusted p-value threshold; showing top N by adjusted p-value."
+  } else {
+    NA_character_
+  }
+
   list(
     status = "computed",
-    reason = NA_character_,
+    reason = reason,
     direction = direction,
     ontology = ontology,
     foreground_genes = fg.genes,
@@ -635,7 +643,8 @@
 
   list(
     up = .compute_go_results(up_genes, background_genes, "up", params),
-    down = .compute_go_results(down_genes, background_genes, "down", params)
+    down = .compute_go_results(down_genes, background_genes, "down", params),
+    all = .compute_go_results(union(up_genes, down_genes), background_genes, "all", params)
   )
 }
 
@@ -653,7 +662,7 @@
       onto
     )
   }
-  list(up = make_dir("up"), down = make_dir("down"))
+  list(up = make_dir("up"), down = make_dir("down"), all = make_dir("all"))
 }
 
 
@@ -703,7 +712,7 @@
   onto <- .dea_ontologies(x)
 
   rows <- list()
-  for (direction in c("up", "down")) {
+  for (direction in c("up", "down", "all")) {
     for (o in onto) {
       res <- if (is.null(go_level)) NULL else go_level[[direction]][[o]]
       rows[[length(rows) + 1L]] <- data.frame(
@@ -738,31 +747,30 @@
 
 .go_empty_message <- function(reason, direction, ontology) {
   if (is.null(reason) || is.na(reason) || !nzchar(reason)) {
+    who <- if (identical(direction, "all")) "all DE genes" else paste0(direction, "-regulated genes")
     reason <- paste0(
-      "No significant GO:", ontology, " terms were detected for ",
-      direction, "-regulated genes."
+      "No significant GO:", ontology, " terms were detected for ", who, "."
     )
   }
   data.frame(message = reason, stringsAsFactors = FALSE)
 }
 
 .write_table_sheet <- function(wb, sheet, data, empty_data = NULL) {
-  openxlsx::addWorksheet(wb, sheet)
+  wb$add_worksheet(sheet)
 
   data <- as.data.frame(data)
   if (nrow(data) == 0L && !is.null(empty_data)) {
     data <- as.data.frame(empty_data)
   }
 
-  openxlsx::writeData(wb, sheet = sheet, x = data)
+  wb$add_data(sheet = sheet, x = data)
 
   if (nrow(data) > 0L) {
-    openxlsx::freezePane(wb, sheet = sheet, firstRow = TRUE)
+    wb$freeze_pane(sheet = sheet, first_row = TRUE)
   }
 
   if (ncol(data) > 0L) {
-    openxlsx::setColWidths(
-      wb,
+    wb$set_col_widths(
       sheet = sheet,
       cols = seq_len(ncol(data)),
       widths = "auto"
@@ -772,32 +780,26 @@
   invisible(NULL)
 }
 
-.write_summary_block <- function(wb, sheet, title, data, start_row, title_style) {
-  openxlsx::writeData(
-    wb,
+.write_summary_block <- function(wb, sheet, title, data, start_row) {
+  wb$add_data(
     sheet = sheet,
     x = title,
-    startRow = start_row,
-    startCol = 1,
-    colNames = FALSE
+    dims = openxlsx2::wb_dims(rows = start_row, cols = 1),
+    col_names = FALSE
   )
-
-  openxlsx::addStyle(
-    wb,
+  wb$add_font(
     sheet = sheet,
-    style = title_style,
-    rows = start_row,
-    cols = 1
+    dims = openxlsx2::wb_dims(rows = start_row, cols = 1),
+    bold = "1",
+    size = "13"
   )
 
   data <- as.data.frame(data)
 
-  openxlsx::writeData(
-    wb,
+  wb$add_data(
     sheet = sheet,
     x = data,
-    startRow = start_row + 1L,
-    startCol = 1
+    dims = openxlsx2::wb_dims(rows = start_row + 1L, cols = 1)
   )
 
   start_row + nrow(data) + 3L
@@ -854,38 +856,30 @@
   )
 }
 
-.write_summary_sheet <- function(wb, x) {
+.write_summary_sheet <- function(wb, x, shown_levels = .dea_levels(x)) {
   sheet <- "summary"
-  openxlsx::addWorksheet(wb, sheet)
+  wb$add_worksheet(sheet)
 
-  title_style <- openxlsx::createStyle(
-    textDecoration = "bold",
-    fontSize = 13
+  # `computed_levels` = every level computed for this comparison; `level_in_document`
+  # = the level(s) actually written in THIS file (write_dea_xlsx writes one file per
+  # level). The `reason` row is shown only when there is one (omitted when computed).
+  fields <- c(
+    "group1", "group2", "group_by", "cluster_by", "cluster",
+    "computed_levels", "level_in_document", "status"
   )
-
-  comparison_df <- data.frame(
-    field = c(
-      "group1",
-      "group2",
-      "group_by",
-      "cluster_by",
-      "cluster",
-      "levels",
-      "status",
-      "reason"
-    ),
-    value = c(
-      x@group1,
-      x@group2,
-      x@group_by,
-      paste(x@cluster_by, collapse = ", "),
-      x@cluster,
-      paste(x@levels, collapse = ", "),
-      x@status,
-      x@reason
-    ),
-    stringsAsFactors = FALSE
+  values <- c(
+    x@group1, x@group2, x@group_by,
+    paste(x@cluster_by, collapse = ", "),
+    x@cluster,
+    paste(x@levels, collapse = ", "),
+    paste(shown_levels, collapse = ", "),
+    x@status
   )
+  if (length(x@reason) == 1L && !is.na(x@reason) && nzchar(x@reason)) {
+    fields <- c(fields, "reason")
+    values <- c(values, x@reason)
+  }
+  comparison_df <- data.frame(field = fields, value = values, stringsAsFactors = FALSE)
 
   summary_blocks <- list(
     "Comparison summary" = comparison_df,
@@ -917,13 +911,12 @@
       sheet = sheet,
       title = block_name,
       data = summary_blocks[[block_name]],
-      start_row = row,
-      title_style = title_style
+      start_row = row
     )
   }
 
-  openxlsx::freezePane(wb, sheet = sheet, firstRow = TRUE)
-  openxlsx::setColWidths(wb, sheet = sheet, cols = 1:10, widths = "auto")
+  wb$freeze_pane(sheet = sheet, first_row = TRUE)
+  wb$set_col_widths(sheet = sheet, cols = 1:10, widths = "auto")
 
   invisible(NULL)
 }
@@ -1747,7 +1740,7 @@
     eps = 0,
     nproc = 1L, # serial fgsea (avoid spawning BiocParallel worker processes)
     padj_cutoff = 0.05,
-    plot_number = 20L
+    top_nodes = 20L
   )
   params <- utils::modifyList(defaults, gsea_params)
   # `pathways` may be supplied to skip the msigdbr query; keep it out of the
@@ -1909,14 +1902,23 @@
 }
 
 # Number of GO terms a go_barplot will display (the plot_data is already
-# truncated to plot_number in .compute_topgo_result).
+# truncated to top_nodes in .compute_topgo_result).
 .dea_go_n_terms <- function(x, level, direction, ontology) {
   res <- .dea_go_result(x, level = level, direction = direction, ontology = ontology)
   if (is.null(res) || is.null(res$plot_data)) 0L else nrow(res$plot_data)
 }
 
+# Number of rows in the GO results TABLE (always present, top-N by adjusted
+# p-value -- includes non-significant terms). Used to decide whether to emit the
+# "Gene Ontology" tab and its DT2 tables, independently of how many terms are
+# plotted (which only counts cutoff-passing terms via .dea_go_n_terms).
+.dea_go_table_n_terms <- function(x, level, direction, ontology) {
+  res <- .dea_go_result(x, level = level, direction = direction, ontology = ontology)
+  if (is.null(res) || is.null(res$res.table)) 0L else nrow(res$res.table)
+}
+
 # Number of pathways a gsea_barplot will display (mirrors its selection: the
-# significant sets, or all if none pass, capped at plot_number).
+# significant sets, or all if none pass, capped at top_nodes).
 .dea_gsea_n_terms <- function(x, level, collection) {
   res <- .dea_gsea_result(x, level = level, collection = collection)
   if (is.null(res) || is.null(res$res.table) || nrow(res$res.table) == 0L) {
@@ -1924,7 +1926,7 @@
   }
   tab <- res$res.table
   pc <- res$params$padj_cutoff %||% 0.05
-  tn <- res$params$plot_number %||% 20L
+  tn <- res$params$top_nodes %||% 20L
   sig <- tab[!is.na(tab$padj) & tab$padj < pc, , drop = FALSE]
   if (nrow(sig) == 0L) sig <- tab[!is.na(tab$pval), , drop = FALSE]
   min(tn, nrow(sig))
@@ -2117,21 +2119,41 @@
   if (!is.null(cc)) {
     lines <- c(
       lines, "**Cells per group**", "",
-      as.character(knitr::kable(cc$per_group, format = "pipe")), ""
+      .dea_summary_table_lines(cc$per_group)
     )
     if (!is.null(cc$per_unit)) {
       lines <- c(
         lines, sprintf("**Cells per %s and group**", cc$unit), "",
-        as.character(knitr::kable(cc$per_unit, format = "pipe")), ""
+        .dea_summary_table_lines(cc$per_unit)
       )
     }
   } else if (nrow(as.data.frame(x@n_cells)) > 0L) {
     lines <- c(
       lines, "**Cells per group**", "",
-      as.character(knitr::kable(as.data.frame(x@n_cells), format = "pipe")), ""
+      .dea_summary_table_lines(as.data.frame(x@n_cells))
     )
   }
   lines
+}
+
+# Emit a DT2 chunk for a small comparison-summary table (cells per group / per
+# unit), so the Comparison summary tab uses DT2 like the DE / GSEA tables. The
+# (tiny) table is deparsed into the chunk, so the chunk is self-contained and does
+# not depend on the comparison object being bound in the knit environment.
+.dea_summary_table_lines <- function(df) {
+  df <- as.data.frame(df)
+  c(
+    "```{r}",
+    "#| echo: false",
+    "#| message: false",
+    "#| warning: false",
+    sprintf(
+      "scitargets:::.scitargets_dt2_tbl(%s, page_length = 10)",
+      paste(deparse(df), collapse = " ")
+    ),
+    "```",
+    ""
+  )
 }
 
 # Build the Quarto/knitr child lines that render one analysis level
@@ -2229,7 +2251,7 @@
   emit_go_onto_dir <- function(kind_lines_fun) {
     out <- c("::: {.panel-tabset}", "")
     for (o in onto) {
-      for (dir in c("up", "down")) {
+      for (dir in c("up", "down", "all")) {
         out <- c(
           out, paste(h_dir, sprintf("%s %s", o, toupper(dir))), "",
           kind_lines_fun(o, dir), ""
@@ -2239,17 +2261,39 @@
     c(out, ":::", "")
   }
 
-  # GO tab: only emit when there are GO terms to show (skip the whole "Gene
-  # Ontology" tab when GO could not be computed, e.g. no significant DE genes
-  # -> no GO terms). P2.14.1.
+  # GO tab: emit whenever a GO TABLE exists (the table is always present, cut to
+  # the top N terms, even when nothing passes the cutoff). Skip the whole "Gene
+  # Ontology" tab only when GO could not be computed at all (no DE genes -> empty
+  # tables). P2.14.1.
   go_total <- sum(vapply(onto, function(o) {
     sum(vapply(
-      c("up", "down"),
-      function(d) .dea_go_n_terms(x, level, d, o), numeric(1L)
+      c("up", "down", "all"),
+      function(d) .dea_go_table_n_terms(x, level, d, o), numeric(1L)
     ))
   }, numeric(1L)))
   if (go_total > 0L) {
     lines <- c(lines, paste(h_tab, "Gene Ontology"), "", "::: {.panel-tabset}", "")
+
+    # Table (DT2) -- shown first, before the figures. Always present (top-N terms),
+    # even when no term passed the adjusted p-value cutoff. Empty cells (GO not
+    # computed for that direction) show their reason instead of an empty table.
+    lines <- c(lines, paste(h_kind, "Table"), "")
+    lines <- c(lines, emit_go_onto_dir(function(o, dir) {
+      if (.dea_go_table_n_terms(x, level, dir, o) > 0L) {
+        c(
+          "```{r}", "#| column: page", "#| message: false", "#| warning: false",
+          sprintf(
+            "scitargets:::.scitargets_dt2_tbl(go_table(%s, direction = %s, ontology = %s, level = %s), page_length = 15)",
+            obj_name, q(dir), q(o), q(level)
+          ),
+          "```"
+        )
+      } else {
+        res <- .dea_go_result(x, level, dir, o)
+        msg <- (if (is.null(res)) NULL else res$reason) %||% "GO was not computed for this direction."
+        c(sprintf("*%s*", msg))
+      }
+    }))
 
     # Barplot
     lines <- c(lines, paste(h_kind, "Barplot"), "")
@@ -2315,19 +2359,6 @@
         "#| column: page",
         "#| message: false",
         "#| warning: false",
-        sprintf("#| fig-height: %s", .dea_fig_height(.dea_gsea_n_terms(x, level, col))),
-        sprintf("#| label: fig-gsea-%s", tag),
-        sprintf(
-          "gsea_barplot(%s, collection = %s, level = %s, metric = %s, interactive = %s)",
-          obj_name, q(col), q(level), q(gsea_metric),
-          bool("gsea" %in% interactive_plots)
-        ),
-        "```",
-        "",
-        "```{r}",
-        "#| column: page",
-        "#| message: false",
-        "#| warning: false",
         sprintf("#| label: tbl-gsea-%s", tag),
         sprintf(
           "#| tbl-cap: \"GSEA results: %s collection (%s level), %s vs %s in cluster %s.\"",
@@ -2336,6 +2367,19 @@
         sprintf(
           "scitargets:::.scitargets_dt2_tbl(gsea_table(%s, collection = %s, level = %s), page_length = 15)",
           obj_name, q(col), q(level)
+        ),
+        "```",
+        "","","",
+        "```{r}",
+        "#| column: page",
+        "#| message: false",
+        "#| warning: false",
+        sprintf("#| fig-height: %s", .dea_fig_height(.dea_gsea_n_terms(x, level, col))),
+        sprintf("#| label: fig-gsea-%s", tag),
+        sprintf(
+          "gsea_barplot(%s, collection = %s, level = %s, metric = %s, interactive = %s)",
+          obj_name, q(col), q(level), q(gsea_metric),
+          bool("gsea" %in% interactive_plots)
         ),
         "```",
         ""
