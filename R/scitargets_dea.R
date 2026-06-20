@@ -1018,8 +1018,62 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #'   - **pseudobulk**: only when `pb_test = "Wald"`; genes are ranked by the signed
 #'     DESeq2 Wald statistic (the `stat` column). It is skipped for `pb_test = "LRT"`
 #'     (the LRT statistic is unsigned).
-#' @param go_params,gsea_params Named lists of GO / GSEA parameters. Pass
-#'   `gsea_params$pathways` (from [get_msigdbr_pathways()]) to skip re-querying.
+#' @param go_params Named list of GO-enrichment parameters (topGO). Any entry
+#'   left unset uses the default below. `organism` / `org_db` are ignored here —
+#'   they are derived from `species`. Recognised entries:
+#'   \describe{
+#'     \item{`ontology`}{Character; one or more of `"BP"`, `"CC"`, `"MF"`
+#'       (default `"BP"`). GO is computed once per requested ontology.}
+#'     \item{`top_nodes`}{Integer (default `20L`). Number of GO terms kept in the
+#'       results table *and* shown in the bar / network plots, per ontology and
+#'       direction. The table always keeps the top `top_nodes` terms by adjusted
+#'       p-value, even when none are significant.}
+#'     \item{`p_adj_cutoff`}{Numeric (default `0.05`). BH-adjusted p-value at or
+#'       below which a GO *term* is significant — this controls which terms are
+#'       drawn in the plots (the table still lists the top `top_nodes`). Distinct
+#'       from `padj_cutoff_single_cell` / `padj_cutoff_pseudobulk`, which pick the
+#'       foreground DE genes fed into GO.}
+#'     \item{`min_signif_genes`}{Integer (default `5L`). Minimum foreground genes
+#'       annotated to a term for it to be plotted.}
+#'     \item{`statistic`}{topGO test statistic passed to [topGO::runTest()]
+#'       (default `"fisher"`; e.g. `"fisher"`, `"ks"`, `"t"`).}
+#'     \item{`algorithm`}{topGO algorithm (default `"weight01"`; e.g. `"classic"`,
+#'       `"elim"`, `"weight"`, `"weight01"`, `"lea"`, `"parentchild"`).}
+#'     \item{`node_size`}{Integer (default `10L`). topGO `nodeSize`: GO terms with
+#'       fewer than this many annotated genes are pruned.}
+#'     \item{`num_char`}{Integer (default `100L`). Max characters of a GO term
+#'       name kept in the table ([topGO::GenTable()] `numChar`).}
+#'     \item{`min_foreground_genes`}{Integer (default `1L`). Minimum DE
+#'       (foreground) genes required to run GO for a direction.}
+#'     \item{`cnet_layout_seed`}{Integer (default `5114L`). RNG seed for the
+#'       gene-concept network (`go_cnetplot`) layout.}
+#'     \item{`keep_topgo_data`}{Logical (default `FALSE`). Keep the heavy
+#'       `topGOdata` object in the result (debugging; much larger output).}
+#'   }
+#' @param gsea_params Named list of GSEA parameters (fgsea + MSigDB). Any entry
+#'   left unset uses the default below. `species` is ignored here — it is derived
+#'   from `species`. Recognised entries:
+#'   \describe{
+#'     \item{`collections`}{Character vector; any subset of `"Hallmark"`,
+#'       `"GO:BP"`, `"C7:ImmuneSigDB"` (default: all three). MSigDB collections to
+#'       test.}
+#'     \item{`pathways`}{Optional pre-built named list of gene-set ->
+#'       gene-symbol character vectors (e.g. from [get_msigdbr_pathways()]).
+#'       Supply it to skip the slow `msigdbr` query; when given it overrides
+#'       `collections` / `species`.}
+#'     \item{`top_nodes`}{Integer. Number of gene sets shown in the GSEA barplot.
+#'       Defaults to `go_params$top_nodes` (i.e. `20L`) unless set explicitly here.}
+#'     \item{`padj_cutoff`}{Numeric (default `0.05`). Adjusted-p at or below which
+#'       a gene set is significant (drives the barplot selection and the
+#'       GSEA-yield heatmap).}
+#'     \item{`minSize`, `maxSize`}{Integer gene-set size bounds passed to
+#'       [fgsea::fgsea()] (defaults `10L` / `500L`).}
+#'     \item{`eps`}{Numeric [fgsea::fgsea()] `eps` (default `0` = exact but
+#'       slower; raise, e.g. `1e-10`, to speed up at the cost of p-value
+#'       resolution).}
+#'     \item{`nproc`}{Integer fgsea worker processes (default `1L` = serial;
+#'       recommended inside a `targets` pipeline to avoid nested parallelism).}
+#'   }
 #' @param pseudobulk_unit Biological replicate column for DESeq2 (default
 #'   "patient_id").
 #' @param min_cells_per_group,min_replicates,min_cells_per_sample Quality

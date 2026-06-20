@@ -67,8 +67,63 @@ DESeq2 Wald statistic (the \code{stat} column). It is skipped for \code{pb_test 
 (the LRT statistic is unsigned).
 }}
 
-\item{go_params, gsea_params}{Named lists of GO / GSEA parameters. Pass
-\code{gsea_params$pathways} (from \code{\link[=get_msigdbr_pathways]{get_msigdbr_pathways()}}) to skip re-querying.}
+\item{go_params}{Named list of GO-enrichment parameters (topGO). Any entry
+left unset uses the default below. \code{organism} / \code{org_db} are ignored here —
+they are derived from \code{species}. Recognised entries:
+\describe{
+\item{\code{ontology}}{Character; one or more of \code{"BP"}, \code{"CC"}, \code{"MF"}
+(default \code{"BP"}). GO is computed once per requested ontology.}
+\item{\code{top_nodes}}{Integer (default \code{20L}). Number of GO terms kept in the
+results table \emph{and} shown in the bar / network plots, per ontology and
+direction. The table always keeps the top \code{top_nodes} terms by adjusted
+p-value, even when none are significant.}
+\item{\code{p_adj_cutoff}}{Numeric (default \code{0.05}). BH-adjusted p-value at or
+below which a GO \emph{term} is significant — this controls which terms are
+drawn in the plots (the table still lists the top \code{top_nodes}). Distinct
+from \code{padj_cutoff_single_cell} / \code{padj_cutoff_pseudobulk}, which pick the
+foreground DE genes fed into GO.}
+\item{\code{min_signif_genes}}{Integer (default \code{5L}). Minimum foreground genes
+annotated to a term for it to be plotted.}
+\item{\code{statistic}}{topGO test statistic passed to \code{\link[topGO:runTest]{topGO::runTest()}}
+(default \code{"fisher"}; e.g. \code{"fisher"}, \code{"ks"}, \code{"t"}).}
+\item{\code{algorithm}}{topGO algorithm (default \code{"weight01"}; e.g. \code{"classic"},
+\code{"elim"}, \code{"weight"}, \code{"weight01"}, \code{"lea"}, \code{"parentchild"}).}
+\item{\code{node_size}}{Integer (default \code{10L}). topGO \code{nodeSize}: GO terms with
+fewer than this many annotated genes are pruned.}
+\item{\code{num_char}}{Integer (default \code{100L}). Max characters of a GO term
+name kept in the table (\code{\link[topGO:GenTable]{topGO::GenTable()}} \code{numChar}).}
+\item{\code{min_foreground_genes}}{Integer (default \code{1L}). Minimum DE
+(foreground) genes required to run GO for a direction.}
+\item{\code{cnet_layout_seed}}{Integer (default \code{5114L}). RNG seed for the
+gene-concept network (\code{go_cnetplot}) layout.}
+\item{\code{keep_topgo_data}}{Logical (default \code{FALSE}). Keep the heavy
+\code{topGOdata} object in the result (debugging; much larger output).}
+}}
+
+\item{gsea_params}{Named list of GSEA parameters (fgsea + MSigDB). Any entry
+left unset uses the default below. \code{species} is ignored here — it is derived
+from \code{species}. Recognised entries:
+\describe{
+\item{\code{collections}}{Character vector; any subset of \code{"Hallmark"},
+\code{"GO:BP"}, \code{"C7:ImmuneSigDB"} (default: all three). MSigDB collections to
+test.}
+\item{\code{pathways}}{Optional pre-built named list of gene-set ->
+gene-symbol character vectors (e.g. from \code{\link[=get_msigdbr_pathways]{get_msigdbr_pathways()}}).
+Supply it to skip the slow \code{msigdbr} query; when given it overrides
+\code{collections} / \code{species}.}
+\item{\code{top_nodes}}{Integer. Number of gene sets shown in the GSEA barplot.
+Defaults to \code{go_params$top_nodes} (i.e. \code{20L}) unless set explicitly here.}
+\item{\code{padj_cutoff}}{Numeric (default \code{0.05}). Adjusted-p at or below which
+a gene set is significant (drives the barplot selection and the
+GSEA-yield heatmap).}
+\item{\code{minSize}, \code{maxSize}}{Integer gene-set size bounds passed to
+\code{\link[fgsea:fgsea]{fgsea::fgsea()}} (defaults \code{10L} / \code{500L}).}
+\item{\code{eps}}{Numeric \code{\link[fgsea:fgsea]{fgsea::fgsea()}} \code{eps} (default \code{0} = exact but
+slower; raise, e.g. \code{1e-10}, to speed up at the cost of p-value
+resolution).}
+\item{\code{nproc}}{Integer fgsea worker processes (default \code{1L} = serial;
+recommended inside a \code{targets} pipeline to avoid nested parallelism).}
+}}
 
 \item{pseudobulk_unit}{Biological replicate column for DESeq2 (default
 "patient_id").}
