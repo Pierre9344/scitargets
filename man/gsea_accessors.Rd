@@ -13,7 +13,10 @@ gsea_barplot(x, ...)
 \arguments{
 \item{x}{A \link{scitargets_dea} object.}
 
-\item{...}{Passed to methods (e.g. \code{level}, \code{collection}).}
+\item{...}{Passed to methods (e.g. \code{level}, \code{collection}). The \code{gsea_table}
+method also accepts \code{n_terms}: the full GSEA table is stored, and \code{n_terms}
+caps how many top rows (by adjusted p-value) are returned -- \code{NULL} (default)
+uses the object's \code{top_nodes}, \code{Inf} returns the entire table.}
 }
 \value{
 \code{gsea_table} returns a data.frame; \code{gsea_barplot} returns a ggplot.

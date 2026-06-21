@@ -31,7 +31,10 @@ go_cnetplot(x, ...)
 \arguments{
 \item{x}{A \link{scitargets_dea} object.}
 
-\item{...}{Passed to methods (e.g. \code{level}, \code{direction}, \code{ontology}).}
+\item{...}{Passed to methods (e.g. \code{level}, \code{direction}, \code{ontology}). The
+\code{go_table} method also accepts \code{n_terms}: the full GO table is stored, and
+\code{n_terms} caps how many top rows (by adjusted p-value) are returned -- \code{NULL}
+(default) uses the object's \code{top_nodes}, \code{Inf} returns the entire table.}
 }
 \value{
 A data.frame, HTML string, or plot object depending on the generic.

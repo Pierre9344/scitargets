@@ -195,7 +195,10 @@ normalize_dea_list <- function(x) {
 #' and `ontology` ("BP"/"CC"/"MF") arguments, defaulting to the first available.
 #'
 #' @param x A [scitargets_dea] object.
-#' @param ... Passed to methods (e.g. `level`, `direction`, `ontology`).
+#' @param ... Passed to methods (e.g. `level`, `direction`, `ontology`). The
+#'   `go_table` method also accepts `n_terms`: the full GO table is stored, and
+#'   `n_terms` caps how many top rows (by adjusted p-value) are returned -- `NULL`
+#'   (default) uses the object's `top_nodes`, `Inf` returns the entire table.
 #' @returns A data.frame, HTML string, or plot object depending on the generic.
 #' @name dea_accessors
 #' @export
@@ -240,10 +243,16 @@ S7::method(go_table, scitargets_dea) <- function(x,
                                                  direction = c("up", "down", "all"),
                                                  ontology = NULL,
                                                  level = NULL,
+                                                 n_terms = NULL,
                                                  ...) {
   direction <- match.arg(direction)
   res <- .dea_go_result(x, level, direction, ontology)
-  if (is.null(res)) data.frame() else res$res.table
+  if (is.null(res)) {
+    return(data.frame())
+  }
+  # Full table is stored; cap to top_nodes for display (n_terms = NULL), or pass
+  # n_terms = Inf for the entire table (xlsx export).
+  .dea_top_n_rows(res$res.table, n_terms, x@go_params$top_nodes)
 }
 
 S7::method(go_plot_data, scitargets_dea) <- function(x,
@@ -451,6 +460,12 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
   gop <- if (is.null(res)) NULL else res$plot_data
   onto_label <- .dea_default_ontology(x, ontology)
 
+  # Drop terms with adjusted p-value == 1: -log10(1) = 0, so their bars have zero
+  # height and don't show on the plot.
+  if (!is.null(gop) && nrow(gop) > 0L && "adjpval" %in% names(gop)) {
+    gop <- gop[!is.na(gop$adjpval) & gop$adjpval < 1, , drop = FALSE]
+  }
+
   if (is.null(gop) || nrow(gop) == 0L) {
     return(.no_result_plot(
       (if (is.null(res)) NULL else res$reason) %||% "No significant GO terms were detected."
@@ -466,6 +481,25 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
   } else {
     paste0("GO:", onto_label, " enrichment in ", direction, "-regulated genes")
   }
+
+  # The barplot shows the top_nodes terms by adjusted p-value (significant or
+  # not). Draw a dashed reference line at the adjusted-p cutoff so the significant
+  # terms (bars reaching past it) stay identifiable; note in the subtitle when no
+  # term actually passed the cutoff.
+  cutoff <- res$params$p_adj_cutoff %||% 0.05
+  y_cut <- -log10(max(cutoff, .Machine$double.xmin))
+  rsn <- res$reason
+  subtitle <- if (!is.null(rsn) && length(rsn) == 1L && !is.na(rsn) && nzchar(rsn)) {
+    paste0(
+      "no term passed adjusted p < ", signif(cutoff, 2),
+      "; showing the top terms by adjusted p-value (dashed line = cutoff)"
+    )
+  } else {
+    paste0("dashed line: adjusted p = ", signif(cutoff, 2))
+  }
+  cutoff_line <- ggplot2::geom_hline(
+    yintercept = y_cut, linetype = "dashed", color = "red", linewidth = 0.4
+  )
 
   # ggiraph: per-bar tooltip with the term, raw + adjusted p-value, enrichment
   # score and the foreground genes annotated to the term.
@@ -483,8 +517,12 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
         ggplot2::aes(tooltip = tooltip, data_id = GO.ID),
         fill = "cornflowerblue"
       ) +
+      cutoff_line +
       ggplot2::coord_flip() +
-      ggplot2::labs(x = "", y = "- log10 adjusted P-value", title = title, caption = cap) +
+      ggplot2::labs(
+        x = "", y = "- log10 adjusted P-value",
+        title = title, subtitle = subtitle, caption = cap
+      ) +
       ggplot2::theme(
         axis.text.y = ggplot2::element_text(size = 12),
         panel.background = ggplot2::element_blank()
@@ -505,8 +543,9 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
     ggplot2::aes(x = Term_wrapped, y = neg_log10_adjpval)
   ) +
     ggplot2::geom_bar(stat = "identity", fill = "cornflowerblue") +
+    cutoff_line +
     ggplot2::coord_flip() +
-    ggplot2::labs(x = "", y = "- log10 adjusted P-value") +
+    ggplot2::labs(x = "", y = "- log10 adjusted P-value", title = title, subtitle = subtitle) +
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(size = 6),
       axis.text.y = ggplot2::element_text(size = 16),
@@ -517,8 +556,7 @@ S7::method(go_barplot, scitargets_dea) <- function(x,
       position = ggplot2::position_dodge(width = 0),
       vjust = 0.5,
       hjust = 1.1
-    ) +
-    ggplot2::ggtitle(title)
+    )
 
   ggpubr::annotate_figure(p, bottom = cap)
 }
@@ -644,7 +682,7 @@ S7::method(dea_write_xlsx, scitargets_dea) <- function(x, out_dir = "./out/clini
         .write_table_sheet(
           wb,
           sheet = .sheet_name(prefix, "GO", o, direction),
-          data = go_table(x, direction = direction, ontology = o, level = level),
+          data = go_table(x, direction = direction, ontology = o, level = level, n_terms = Inf),
           empty_data = .go_empty_message(reason, direction, o)
         )
       }
@@ -657,7 +695,7 @@ S7::method(dea_write_xlsx, scitargets_dea) <- function(x, out_dir = "./out/clini
       .write_table_sheet(
         wb,
         sheet = .sheet_name(prefix, "GSEA", collection),
-        data = gsea_table(x, collection = collection, level = level),
+        data = gsea_table(x, collection = collection, level = level, n_terms = Inf),
         empty_data = data.frame(
           message = if (is.null(greason) || is.na(greason)) {
             paste0("No GSEA result for ", collection, ".")
@@ -1599,7 +1637,10 @@ compute_gsea <- function(markers, pathways_by_collection, gsea_params = list()) 
 #' GSEA accessors for [scitargets_dea]
 #'
 #' @param x A [scitargets_dea] object.
-#' @param ... Passed to methods (e.g. `level`, `collection`).
+#' @param ... Passed to methods (e.g. `level`, `collection`). The `gsea_table`
+#'   method also accepts `n_terms`: the full GSEA table is stored, and `n_terms`
+#'   caps how many top rows (by adjusted p-value) are returned -- `NULL` (default)
+#'   uses the object's `top_nodes`, `Inf` returns the entire table.
 #' @returns `gsea_table` returns a data.frame; `gsea_barplot` returns a ggplot.
 #' @name gsea_accessors
 #' @export
@@ -1608,9 +1649,14 @@ gsea_table <- S7::new_generic("gsea_table", "x")
 #' @export
 gsea_barplot <- S7::new_generic("gsea_barplot", "x")
 
-S7::method(gsea_table, scitargets_dea) <- function(x, collection = NULL, level = NULL, ...) {
+S7::method(gsea_table, scitargets_dea) <- function(x, collection = NULL, level = NULL, n_terms = NULL, ...) {
   res <- .dea_gsea_result(x, level = level, collection = collection)
-  if (is.null(res) || is.null(res$res.table)) data.frame() else res$res.table
+  if (is.null(res) || is.null(res$res.table)) {
+    return(data.frame())
+  }
+  # Full table is stored; cap to top_nodes for display (n_terms = NULL), or pass
+  # n_terms = Inf for the entire table (xlsx export).
+  .dea_top_n_rows(res$res.table, n_terms, x@gsea_params$top_nodes)
 }
 
 S7::method(gsea_barplot, scitargets_dea) <- function(x,
@@ -1652,6 +1698,14 @@ S7::method(gsea_barplot, scitargets_dea) <- function(x,
   }
   if (nrow(sig) == 0L) {
     return(.no_result_plot(res$reason %||% "No GSEA gene set to display."))
+  }
+
+  # Drop gene sets with adjusted p-value == 1: their signed -log10(padj) bar is 0
+  # and doesn't show. Done after selection so a fallback still keeps the padj < 1
+  # sets; only the invisible ones are removed.
+  sig <- sig[!is.na(sig$padj) & sig$padj < 1, , drop = FALSE]
+  if (nrow(sig) == 0L) {
+    return(.no_result_plot(res$reason %||% "No GSEA gene set with adjusted p-value < 1 to display."))
   }
 
   pv <- pmax(sig$pval, .Machine$double.xmin)

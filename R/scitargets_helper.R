@@ -16,9 +16,14 @@
 .scitargets_dt2_tbl <- function(data,
                                 page_length = 10L,
                                 buttons = list("copy", "csv", "excel", "pdf", "print"),
+                                drop_cols = NULL,
                                 ...) {
+  data <- as.data.frame(data)
+  if (length(drop_cols)) {
+    data <- data[, setdiff(names(data), drop_cols), drop = FALSE]
+  }
   DT2::dt2(
-    as.data.frame(data),
+    data,
     extensions = "Buttons",
     compact = TRUE,
     height = NULL,
@@ -183,6 +188,21 @@
     return(NULL)
   }
   go_dir[[ontology]]
+}
+
+# Top-N rows of an already-ordered results table, for DISPLAY (plots / report /
+# scidashboard tables). The object stores the FULL table; this caps it at access
+# time. `n` NULL -> use `default_n` (the object's top_nodes); `n` Inf/NA or >=
+# nrow -> the whole table (used by the xlsx export, which writes everything).
+.dea_top_n_rows <- function(tab, n, default_n = 20L) {
+  if (is.null(tab) || !is.data.frame(tab) || nrow(tab) == 0L) {
+    return(tab)
+  }
+  n <- if (is.null(n)) (default_n %||% 20L) else n
+  if (length(n) != 1L || is.na(n) || is.infinite(n) || n >= nrow(tab)) {
+    return(tab)
+  }
+  utils::head(tab, max(0L, as.integer(n)))
 }
 
 .empty_go_result <- function(reason = NA_character_, direction = NA_character_, params = list()) {
@@ -489,13 +509,12 @@
     drop = FALSE
   ]
 
-  # Keep the topGO table even when nothing passes the adjusted p-value cutoff: cut
-  # to the top N terms (N = params$top_nodes). The cutoff-passing terms (used for
-  # the plots, below) are the prefix of this ordering, so they remain a subset of
-  # the displayed table.
-  n_keep <- min(params$top_nodes, nrow(res_table))
-  res_table <- res_table[seq_len(n_keep), , drop = FALSE]
-
+  # Store the FULL scored table (every tested GO term, ordered by adjusted
+  # p-value); it is NOT truncated here. top_nodes is the DISPLAY cap, applied at
+  # access time: go_table() returns the top_nodes rows for the report/scidashboard
+  # tables, .prepare_go_plot_data()/.build_cnet_data() take the top_nodes terms for
+  # the plots, and the xlsx export writes this entire table (go_table(n_terms=Inf)).
+  # The per-term `Genes` column below is therefore computed for every scored term.
   res_table$Annotated <- suppressWarnings(as.numeric(res_table$Annotated))
   res_table$Significant <- suppressWarnings(as.numeric(res_table$Significant))
   res_table$Expected <- suppressWarnings(as.numeric(res_table$Expected))
@@ -525,28 +544,32 @@
   rownames(res_table) <- NULL
   res_table <- dplyr::relocate(res_table, Genes, .after = Enrichment)
 
-  # Plots (barplot / network / genes-terms) only use terms that pass the adjusted
-  # p-value cutoff, as before. These are the prefix of the ordered display table.
+  # Plots (barplot / network / genes-terms) show the TOP-N terms by adjusted
+  # p-value (N = params$top_nodes), NOT only the cutoff-passing ones --
+  # .prepare_go_plot_data()/.build_cnet_data() order by adjusted p-value and keep
+  # the top N of whatever table they are given. go_barplot draws a reference line
+  # at the cutoff so the significant terms remain identifiable. signif_rows now
+  # only feeds the `reason` note below.
   signif_rows <- res_table[
     !is.na(res_table$adjpval) & res_table$adjpval <= params$p_adj_cutoff, ,
     drop = FALSE
   ]
 
   plot_data <- .prepare_go_plot_data(
-    res_table = signif_rows,
+    res_table = res_table,
     min_signif_genes = params$min_signif_genes,
     top_nodes = params$top_nodes
   )
 
   cnet_data <- .build_cnet_data(
-    res_table = signif_rows,
+    res_table = res_table,
     min_signif_genes = params$min_signif_genes,
     top_nodes = params$top_nodes,
     layout_seed = params$cnet_layout_seed
   )
 
   reason <- if (nrow(signif_rows) == 0L) {
-    "No GO terms passed the adjusted p-value threshold; showing top N by adjusted p-value."
+    "No GO terms passed the adjusted p-value threshold; showing the top terms by adjusted p-value."
   } else {
     NA_character_
   }
@@ -2283,7 +2306,7 @@
         c(
           "```{r}", "#| column: page", "#| message: false", "#| warning: false",
           sprintf(
-            "scitargets:::.scitargets_dt2_tbl(go_table(%s, direction = %s, ontology = %s, level = %s), page_length = 15)",
+            "scitargets:::.scitargets_dt2_tbl(go_table(%s, direction = %s, ontology = %s, level = %s), page_length = 15, drop_cols = \"Genes\")",
             obj_name, q(dir), q(o), q(level)
           ),
           "```"
@@ -2365,7 +2388,7 @@
           col, level, x@group1, x@group2, x@cluster
         ),
         sprintf(
-          "scitargets:::.scitargets_dt2_tbl(gsea_table(%s, collection = %s, level = %s), page_length = 15)",
+          "scitargets:::.scitargets_dt2_tbl(gsea_table(%s, collection = %s, level = %s), page_length = 15, drop_cols = \"leadingEdge\")",
           obj_name, q(col), q(level)
         ),
         "```",
