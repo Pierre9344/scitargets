@@ -4,15 +4,15 @@
 \name{scitargets}
 \alias{scitargets-package}
 \alias{scitargets}
-\title{scitargets: Single-cell CITE-seq analysis with targets}
+\title{scitargets: Single-cell analysis with targets}
 \description{
 This package provides target factories and utilities for analyzing
-single-cell \href{https://en.wikipedia.org/wiki/CITE-Seq}{CITE-seq} data with the \pkg{Seurat} and \pkg{targets} packages.
+single-cell data with the \pkg{Seurat} and \pkg{targets} packages.
 }
 \section{scitargets Functions}{
 \subsection{Function used by the targets factories:}{
 \enumerate{
-\item \link{load_seurat_data_10X}: load CITE-seq data from 10X cellranger output
+\item \link{load_seurat_data_10X}: load single-cell data from 10X cellranger output
 \item \link{filter_cell_and_run_reduction}: To be called on the loaded seurat data to filter cells based on their number of genes and percentage of mitochondrial counts.
 \item \link{demultiplex_cell}: demultiplex the cells using the HTO assay
 \item \link{extract_non_negative_cells}: filter the cells to remove the negative cells (keep both singlets and doublets).

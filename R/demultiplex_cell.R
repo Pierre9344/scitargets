@@ -2,7 +2,7 @@ utils::globalVariables(c("nFeature_RNA", "percent.mt", "."))
 
 #' Demultiplex cell
 #'
-#' Demultiplex the cells using the cite-seq experiment HTO.
+#' Demultiplex the cells using the experiment's HTO (cell-hashing) assay.
 #'
 #' @param obj A Seurat object with the cells HTO informations
 #' @param default_seed Default seed used for reduction methods that need it. Not used if the function run inside a targets pipeline as in this case the steps seed (defined based on its name and the pipeline global seed) is used.
@@ -22,7 +22,7 @@ demultiplex_cell <- function(
     stop("obj must be a Seurat object")
   }
   if (!"HTO" %in% SeuratObject::Assays(obj)) {
-    stop("obj must contain a assay named 'HTO' from a cite-seq experiment")
+    stop("obj must contain an assay named 'HTO' (cell-hashing experiment)")
   }
   if (!is.numeric(default_seed)) {
     stop("default_seed must be numeric")

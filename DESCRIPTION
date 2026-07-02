@@ -1,7 +1,7 @@
 Package: scitargets
 Title: Single-cell analysis with targets pipeline
-Version: 1.4.1
-Description: This package provides target factories and utilities for analyzing single-cell CITE-seq data with targets pipeline.
+Version: 1.5.0
+Description: This package provides target factories and utilities for analyzing single-cell data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -29,6 +29,7 @@ Imports:
     igraph,
     tibble,
     scales,
+    patchwork,
     purrr,
     S7,
     openxlsx2,
@@ -53,7 +54,9 @@ Suggests:
     crew,
     qs2,
     quarto (>= 1.5.1),
-    tarchetypes
+    tarchetypes,
+    WGCNA,
+    hdWGCNA
 VignetteBuilder: quarto
 Depends: 
     R (>= 3.5)

@@ -1,9 +1,10 @@
----
+# scitargets 1.5.0
 
-editor_options: 
-  markdown: 
-    wrap: 72
----
+- New `tar_hdwgcna()` targets factory for an hdWGCNA co-expression analysis (following the hdWGCNA basic + differential module-eigengene tutorials). A single shared metacell-preparation step (`wgcna_prep`) is created once for all groups, and the per-group steps `wgcna_<group>_powertest`, `wgcna_<group>_soft_power`, `wgcna_<group>` and `wgcna_<group>_dmes` are created for each `group` (target names carry a lower-cased, sanitised group label). All values passed to the hdWGCNA / WGCNA functions are exposed as arguments; `input_obj`, `clustering_col` and `patient_col` are required and validated. The soft power is selected as `hdWGCNA::PlotSoftPowers()` highlights it (lowest tested power with `SFT.R.sq >= sft_rsquared`); modules are associated with a clinical trait via `ModuleTraitCorrelation()` (Spearman by default, on one-hot trait indicators) and pairwise `FindDMEs()`. `deployment = "main"` for the prep, power test, soft-power, network and Enrichr steps (the power test and network load the whole shared Seurat object, so running several groups concurrently on workers would hold multiple full copies in memory); only the DME step runs on a worker. `WGCNA` and `hdWGCNA` were added to Suggests.
+
+- New hdWGCNA report helpers, mirroring `dea_report_lines()`. `hdwgcna_report_lines(group, ...)` builds a full Quarto tabset for one cell group's hdWGCNA results (soft-power, dendrogram + modules, module-trait correlation, Enrichr GO enrichment, module-eigengene dot plot, differential module eigengenes); emit it with `knitr::knit_child()`. Its chunks read the `tar_hdwgcna()` targets directly via `tar_read()`. Supporting plot/table helpers are also exported: `hdwgcna_module_trait_heatmap()`, `hdwgcna_module_trait_table()`, `hdwgcna_associated_modules()`, `hdwgcna_enrichr_barplot()`, `hdwgcna_me_dotplot()` and `hdwgcna_dme_heatmap()`.
+
+- `tar_demultiplex_hto()` and `tar_hdwgcna()` gain `deployment` (`"main"`/`"worker"`) and `controller` arguments to choose where their steps run, including routing to a named controller of a `crew::crew_controller_group()` (via `targets::tar_resources()`). Steps that must stay on the main process are **not** affected: the raw-load step of `tar_demultiplex_hto()` (Seurat metadata creation bugs on crew workers) and every WGCNA-multithreaded / whole-object step of `tar_hdwgcna()` (`wgcna_prep`, power test, soft-power, network, Enrichr) — only `tar_hdwgcna()`'s `dmes` step is relocatable. Both default to `deployment = "main"`, preserving previous behaviour.
 
 # scitargets 1.4.1
 
@@ -32,6 +33,13 @@ editor_options:
 - The xlsx export (`write_dea_xlsx` / `dea_write_xlsx`) now uses `openxlsx2` instead of the unmaintained `openxlsx`. The "summary" sheet's "Comparison summary" block renames `levels` to `computed_levels` (all levels computed for the comparison) and adds `level_in_document` (the level written in this file); the `reason` row is shown only when non-empty. Per-level files no longer prefix sheet names with `sc_`/`pb_` (the prefix is kept only when several levels share one workbook).
 
 - Report generation: new `dea_comparisons_lines()` groups every comparison's `dea_report_lines()` block under a single **"DEA Comparisons"** tab (each comparison a nested child tab), as a sibling of the cell-state-composition / testability tabs, instead of looping `dea_report_lines()` by hand. The comparison "Comparison summary" tab now renders its cell-count tables with `DT2`. `composition_plot()` drops its (large) legend and scales the canvas width with the number of samples (the interactive `ggiraph` tooltip carries the cell state); `composition_boxplot()` lays its facets out in two columns and scales height with the number of cell states. `gsea_barplot()`'s subtitle is more explicit ("gene sets with adjusted p-value < ...").
+
+- GO and GSEA result tables are now stored in full inside the `scitargets_dea` object (the GO table was previously truncated to `top_nodes` at compute time). `go_table()` and `gsea_table()` gain an `n_terms` argument: it caps the returned rows to the object's `top_nodes` by default (used by the report and dashboards) or returns the entire table with `n_terms = Inf`. The xlsx export (`dea_write_xlsx`) now writes the complete tables.
+
+- GO bar/network plots and the genes-terms list show the top-N terms by adjusted p-value (not only the cutoff-passing ones), so a plot is produced whenever terms exist. `go_barplot()` draws a dashed reference line at the adjusted-p cutoff. GO and GSEA bar plots drop terms / gene sets with an adjusted p-value of 1 (their `-log10` bar has zero height).
+
+- The report's GO and GSEA tables (`dea_report_lines()`) drop the per-term `Genes` (GO) and `leadingEdge` (GSEA) columns for readability; those columns remain in the object and in the xlsx export.
+
 
 # scitargets 1.4.0
 

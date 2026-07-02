@@ -15,7 +15,7 @@ demultiplex_cell(obj = NULL, default_seed = 1234)
 A seurat object with metadata containing the demultiplexing result.
 }
 \description{
-Demultiplex the cells using the cite-seq experiment HTO.
+Demultiplex the cells using the experiment's HTO (cell-hashing) assay.
 }
 \examples{
 \dontrun{

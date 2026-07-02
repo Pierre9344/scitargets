@@ -2,7 +2,7 @@
 % Please edit documentation in R/tar_demultiplex_hto.R
 \name{tar_demultiplex_hto}
 \alias{tar_demultiplex_hto}
-\title{Targets factory to demultiplex CITE-seq}
+\title{Targets factory to demultiplex HTO-hashed samples}
 \usage{
 tar_demultiplex_hto(
   run_id = "ID_NAME",
@@ -15,7 +15,9 @@ tar_demultiplex_hto(
   singlets_feat_to_remove = NULL,
   singlets_dim_to_use = 1:15,
   singlets_clusters_to_use = NULL,
-  run_azimuth = F
+  run_azimuth = F,
+  deployment = "main",
+  controller = NULL
 )
 }
 \arguments{
@@ -40,6 +42,15 @@ tar_demultiplex_hto(
 \item{singlets_clusters_to_use}{Name of cell cluster to use when identifying markers or running azimuth celltype annotation}
 
 \item{run_azimuth}{If true, run azimuth using the (human) pbmc-ref of SeuratData}
+
+\item{deployment}{Where the demultiplexing steps run: \code{"main"} (default) or
+\code{"worker"} (send them to a \code{crew} worker). The raw-load step is always pinned
+to \code{"main"} regardless, because Seurat metadata creation bugs on crew workers.}
+
+\item{controller}{Optional name of a \code{crew} controller to route the steps to
+(via \code{targets::tar_resources()}), for use with a
+\code{crew::crew_controller_group()}. \code{NULL} (default) uses the pipeline's default
+controller when \code{deployment = "worker"}, and is ignored on \code{"main"}.}
 }
 \value{
 A list describing pipeline steps that can be interpreted by targets
@@ -47,7 +58,7 @@ A list describing pipeline steps that can be interpreted by targets
 \description{
 This function is used to create the pipeline steps necessary to:
 \itemize{
-\item load the CITE-seq data
+\item load the single-cell data
 \item filter the assay based on the number of detected genes and percentage of mitochondrial counts
 \item demultiplex the HTO
 \item extract non-negative (singlets + doublets) cells

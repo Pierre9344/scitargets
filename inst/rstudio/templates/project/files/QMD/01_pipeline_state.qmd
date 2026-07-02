@@ -5,7 +5,7 @@ title: State of the pipeline
 
 # Environment
 
-This project use the **scitargets** (`r packageVersion("scitargets")`) R package to analyse single-cell CITE-seq data.
+This project use the **scitargets** (`r packageVersion("scitargets")`) R package to analyse single-cell data.
 
 `r version$version.string`
 

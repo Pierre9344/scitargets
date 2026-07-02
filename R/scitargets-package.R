@@ -1,12 +1,12 @@
-#' scitargets: Single-cell CITE-seq analysis with targets
+#' scitargets: Single-cell analysis with targets
 #'
 #' This package provides target factories and utilities for analyzing
-#' single-cell [CITE-seq](https://en.wikipedia.org/wiki/CITE-Seq) data with the \pkg{Seurat} and \pkg{targets} packages.
+#' single-cell data with the \pkg{Seurat} and \pkg{targets} packages.
 #'
 #' # scitargets Functions
 #'
 #' ## Function used by the targets factories:
-#' 1. [load_seurat_data_10X]: load CITE-seq data from 10X cellranger output
+#' 1. [load_seurat_data_10X]: load single-cell data from 10X cellranger output
 #' 2. [filter_cell_and_run_reduction]: To be called on the loaded seurat data to filter cells based on their number of genes and percentage of mitochondrial counts.
 #' 3. [demultiplex_cell]: demultiplex the cells using the HTO assay
 #' 4. [extract_non_negative_cells]: filter the cells to remove the negative cells (keep both singlets and doublets).

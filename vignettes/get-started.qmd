@@ -27,9 +27,9 @@ library(scitargets)
 
 # Reasons to use scitargets
 
-The research team I am part of, use [CITE-seq](https://en.wikipedia.org/wiki/CITE-Seq) to pool multiple samples before sequencing allowing to use HTO to demultiplex the samples and to identify singlets cells.
+The research team I am part of, use cell hashing (HTO) to pool multiple samples before sequencing allowing to use HTO to demultiplex the samples and to identify singlets cells.
 
-My first single-cell project consisted to analyse more than 30 PBMCs samples sequenced using CITE-seq. Because of the large number of samples, they were processed into 10 sequencing runs of 3-4 samples. Before I could integrated theses runs into a single Seurat object, I had to perform the following steps on each run individually:
+My first single-cell project consisted to analyse more than 30 PBMCs samples pooled with cell hashing (HTO). Because of the large number of samples, they were processed into 10 sequencing runs of 3-4 samples. Before I could integrated theses runs into a single Seurat object, I had to perform the following steps on each run individually:
 
 1.  Remove low quality cells based on the number of detected genes and the percentage of mitochondrial counts.
 

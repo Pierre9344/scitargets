@@ -60,6 +60,50 @@ list(
 )
 ```
 
+## Choosing where the factory steps run (crew workers)
+
+Both `tar_demultiplex_hto()` and `tar_hdwgcna()` take a `deployment`
+(`"main"`/`"worker"`) and an optional `controller` argument, so their steps can
+run on the main process (the default) or on a `crew` worker — and, when you use a
+`crew::crew_controller_group()`, on a **named** controller:
+
+```{r}
+#| eval: false
+#| include: true
+tar_option_set(
+  controller = crew::crew_controller_group(
+    # several workers for the per-run demultiplexing steps, which fan out
+    crew::crew_controller_local(name = "demux", workers = 4L),
+    # a small controller for the light per-comparison DME step
+    crew::crew_controller_local(name = "dme", workers = 2L)
+  ),
+  # default controller for any target that does not name one:
+  resources = targets::tar_resources(
+    crew = targets::tar_resources_crew(controller = "demux")
+  )
+)
+list(
+  scitargets::tar_demultiplex_hto(
+    run_id = "SC282_250730", project_id = "PRETERRAH",
+    singlets_clusters_to_use = "clusters_0.5",
+    deployment = "worker", controller = "demux"   # demux steps -> the "demux" workers
+  ),
+  scitargets::tar_hdwgcna(
+    group = "MAIT", input_obj = "merged", clustering_col = "predicted.celltype.l2",
+    patient_col = "patient_id",
+    deployment = "worker", controller = "dme"     # only the light `dmes` step moves here
+  )
+)
+```
+
+Steps that must stay on the main process are **not** moved by these arguments:
+the raw-load step of `tar_demultiplex_hto()` (Seurat metadata creation is
+unreliable on crew workers) and every WGCNA-multithreaded / whole-object step of
+`tar_hdwgcna()` (`wgcna_prep`, power test, soft-power, network, Enrichr) — WGCNA's
+own multithreading is incompatible with crew, so only `tar_hdwgcna()`'s `dmes`
+step follows `deployment`/`controller`. Leaving both at the default
+`deployment = "main"` keeps the whole factory on the main process.
+
 ## Equivalent targets pipeline without the target factory
 
 ```{r}
