@@ -4,18 +4,58 @@
 \alias{azimuth_annot_pbmc}
 \title{Azimuth annotations for PBMC}
 \usage{
-azimuth_annot_pbmc(obj, cluster_to_use = "clusters_0.5")
+azimuth_annot_pbmc(
+  obj,
+  cluster_to_use = "clusters_0.5",
+  reference = NULL,
+  homolog_table = NULL
+)
 }
 \arguments{
 \item{obj}{a Seurat object with an SCT assay and a metadata field corresponding to cell clusters}
 
 \item{cluster_to_use}{Name of the cells clusters}
+
+\item{reference}{Reference passed to \code{\link[Azimuth:RunAzimuth]{Azimuth::RunAzimuth()}}. \code{NULL} (the
+default) uses the \code{pbmcref.SeuratData} package's own \verb{azimuth/} directory
+when that package is installed, and falls back to the name \code{"pbmcref"}
+otherwise. Pass a directory holding \code{ref.Rds} and \code{idx.annoy} to use a
+reference from elsewhere.}
+
+\item{homolog_table}{Path to a local copy of Azimuth's \code{homologs.rds}. \code{NULL}
+(the default) reads \code{getOption("scitargets.azimuth_homologs")}, then the
+\code{AZIMUTH_HOMOLOGS} environment variable, and leaves Azimuth to download the
+table when neither is set. Fetch a copy from
+\verb{https://seurat.nygenome.org/azimuth/references/homologs.rds} on a machine
+with access.}
 }
 \value{
 A seurat object
 }
 \description{
 Azimuth annotations for PBMC
+}
+\details{
+Two separate downloads have to be dealt with, and only the first is
+configurable.
+
+\code{Azimuth:::LoadReference()} treats its \code{path} as a URL unless it is an
+existing local directory, so \code{reference = "pbmcref"} always downloads from
+seurat.nygenome.org even when the reference is already installed. Resolving
+the installed package's directory first takes the local branch instead.
+
+\code{RunAzimuth.Seurat()} then calls \code{ConvertGeneNames()} with the homolog table
+URL \strong{hardcoded}, with no argument to override it. \code{ConvertGeneNames()} does
+accept a local file, so when \code{homolog_table} is given this function swaps that
+function in Azimuth's namespace for the duration of the call, restoring it
+immediately afterwards. That is a workaround for a hardcoded URL rather than a
+supported extension point, and it is skipped entirely unless a table is
+configured, so the default behaviour is untouched.
+
+On a host that can reach seurat.nygenome.org neither applies. On one that
+cannot (an HPC compute node behind a proxy answering 403) both are needed:
+fixing only the reference moves the failure from the reference download to the
+homolog download.
 }
 \examples{
 \dontrun{

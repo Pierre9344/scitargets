@@ -23,6 +23,7 @@ tar_hdwgcna(
   sft_rsquared = 0.8,
   tom_outdir = "./out/hdwgcna/",
   overwrite_tom = TRUE,
+  delete_tom = TRUE,
   n_threads = 8,
   deployment = "main",
   controller = NULL,
@@ -39,13 +40,20 @@ tar_hdwgcna(
   enrichr_corr_cutoff = 0.05,
   enrichr_dme_cutoff = 0.05,
   module_table_file = NULL,
-  module_gene_list = TRUE
+  module_gene_list = TRUE,
+  name_suffix = ""
 )
 }
 \arguments{
 \item{group}{Character vector of cell-group labels to analyse (the values found
 in \code{clustering_col}, e.g. \code{"MAIT"}). Per-group target names use a lower-cased,
-sanitised version of the label.}
+sanitised version of the label.
+
+When \code{clustering_col} holds several columns, \code{group} must be a \strong{list} of
+the same length, one character vector per column, since a clustering at one
+resolution has different labels from another. A single character vector is
+recycled to every column, which is only sensible when the columns really do
+share their labels.}
 
 \item{create_prep}{Whether this call creates the shared \code{wgcna_prep} target.
 \code{TRUE} (default) builds it; set \code{FALSE} on the additional \code{tar_hdwgcna()}
@@ -60,7 +68,22 @@ When \code{FALSE}, \code{input_obj} is not required.}
 \item{assay}{Assay used throughout (default \code{"RNA"}, log-normalised).}
 
 \item{clustering_col}{Metadata column holding the cell groups; used as
-\code{ident.group} for the metacells and as \code{group.by}/\code{subset_by} downstream.}
+\code{ident.group} for the metacells and as \code{group.by}/\code{subset_by} downstream.
+
+May be a character \strong{vector}, to run the whole analysis over several
+groupings of the same object in one call, for example two clustering
+resolutions and an Azimuth annotation. Each column gets its own
+\code{wgcna_prep}, since the metacells depend on the grouping, and its own set of
+per-group targets. Every generated name is then suffixed to keep the scopes
+apart; the suffix comes from the vector's names when it has any, otherwise
+from the column name itself:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{clustering_col = c(`0.3` = "clusters_0.3", `0.6` = "clusters_0.6")
+# -> wgcna_prep_0.3, wgcna_1_0.3, ..., wgcna_prep_0.6, wgcna_1_0.6, ...
+}\if{html}{\out{</div>}}
+
+A single unnamed column produces unsuffixed names, exactly as before, so
+existing pipelines are unaffected.}
 
 \item{patient_col}{Biological-replicate column; used as the metacell harmony
 variable and as \code{group.by.vars} for \code{ModuleEigengenes}.}
@@ -83,6 +106,20 @@ variable and as \code{group.by.vars} for \code{ModuleEigengenes}.}
 \item{tom_outdir}{Directory where \code{ConstructNetwork} writes the TOM.}
 
 \item{overwrite_tom}{Whether \code{ConstructNetwork} overwrites an existing TOM.}
+
+\item{delete_tom}{Whether to delete the topological overlap matrix as soon as
+\code{ConstructNetwork()} has finished with it (default \code{TRUE}). The TOM is a
+dense gene-by-gene matrix, roughly 3 GB per cell group here, and
+\code{ConstructNetwork()} is the only thing that reads it: the modules,
+eigengenes, connectivity and every downstream target are derived inside
+that call, so the file is write-only for this pipeline.
+
+Set \code{FALSE} if you intend to call the hdWGCNA functions that do re-read it,
+namely \code{HubGeneNetworkPlot()}, \code{ModuleNetworkPlot()} and
+\code{RunModuleUMAP()} / \code{ModuleUMAPPlot()}. Nothing in this package uses them.
+Deleting only removes \verb{<tom_outdir>/<tom_name>_TOM.rda} and any
+\verb{<tom_name>_block.N.rda} left behind by a multi-block run; the fitted
+network object is untouched.}
 
 \item{n_threads}{Threads for \code{WGCNA::enableWGCNAThreads}.}
 
@@ -180,7 +217,12 @@ Created only when \code{create_prep = TRUE} (the default); omit it (set
 same \code{wgcna_prep}.
 \item \verb{wgcna_<g>_powertest}: \code{SetDatExpr} for the group + \code{TestSoftPowers}
 (one per group; \code{deployment = "main"}, since it loads the whole Seurat
-object).
+object). Returns a small \code{list}, not the Seurat object: \code{power_table}
+(the scale-free fit table \code{hdWGCNA::PlotSoftPowers()} draws),
+\code{soft_power}, \code{reached_threshold}, \code{sft_rsquared} and \code{group}. Keeping
+the object here cost several GB of store per cell group to carry a few
+hundred numbers; the network step rebuilds \code{datExpr} from \code{wgcna_prep}
+instead, which is cheap next to \code{ConstructNetwork}.
 \item \verb{wgcna_<g>_soft_power}: the selected soft power, a single number
 (one per group; \code{deployment = "main"}).
 \item \verb{wgcna_<g>}: \code{ConstructNetwork} + \code{ModuleEigengenes} + \code{ModuleConnectivity}
@@ -228,7 +270,9 @@ every element of \code{group} (target names carry the group, e.g. \code{wgcna_ma
 \itemize{
 \item \code{wgcna_prep} — RNA assay prep (join layers, normalise, variable features,
 scale) then \code{SetupForWGCNA} + \code{MetacellsByGroups} and the metacell embedding.
-\item \verb{wgcna_<group>_powertest} — \code{SetDatExpr} for the group + \code{TestSoftPowers}.
+\item \verb{wgcna_<group>_powertest} — \code{SetDatExpr} for the group + \code{TestSoftPowers},
+returning the scale-free fit table and the chosen power rather than the
+Seurat object.
 \item \verb{wgcna_<group>_soft_power} — the soft power chosen exactly as
 \code{hdWGCNA::PlotSoftPowers} highlights it (lowest tested power with
 \code{SFT.R.sq >= sft_rsquared}).

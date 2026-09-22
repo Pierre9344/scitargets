@@ -12,7 +12,8 @@ hdwgcna_report_lines(
   heading_level = 2L,
   enrichr_dbs = c("GO_Biological_Process_2023", "GO_Cellular_Component_2023",
     "GO_Molecular_Function_2023"),
-  interactive_enrichr = TRUE
+  interactive_enrichr = TRUE,
+  name_suffix = ""
 )
 }
 \arguments{
@@ -36,6 +37,13 @@ BP/CC/MF 2023 databases). Use \code{character()} to omit the enrichment section.
 
 \item{interactive_enrichr}{Whether the Enrichr barplots are interactive
 (\code{ggiraph}, default \code{TRUE}).}
+
+\item{name_suffix}{Suffix appended to every target name read, matching the
+\code{name_suffix} given to \code{\link[=tar_hdwgcna]{tar_hdwgcna()}} (or the one it derives from a named
+\code{clustering_col}, such as \code{"_0.6"}). Empty by default, which reads the
+unsuffixed names a single-scope pipeline produces. Getting this wrong is
+not silent: the generated chunks fail on a missing target rather than
+reporting another grouping's network.}
 }
 \value{
 A character vector of Quarto/knitr lines.

@@ -674,6 +674,12 @@ hdwgcna_dme_heatmap <- function(obj, dmes, clip = 0.5) {
 #'   BP/CC/MF 2023 databases). Use `character()` to omit the enrichment section.
 #' @param interactive_enrichr Whether the Enrichr barplots are interactive
 #'   (`ggiraph`, default `TRUE`).
+#' @param name_suffix Suffix appended to every target name read, matching the
+#'   `name_suffix` given to [tar_hdwgcna()] (or the one it derives from a named
+#'   `clustering_col`, such as `"_0.6"`). Empty by default, which reads the
+#'   unsuffixed names a single-scope pipeline produces. Getting this wrong is
+#'   not silent: the generated chunks fail on a missing target rather than
+#'   reporting another grouping's network.
 #' @returns A character vector of Quarto/knitr lines.
 #' @export
 hdwgcna_report_lines <- function(group,
@@ -686,15 +692,20 @@ hdwgcna_report_lines <- function(group,
                                    "GO_Cellular_Component_2023",
                                    "GO_Molecular_Function_2023"
                                  ),
-                                 interactive_enrichr = TRUE) {
+                                 interactive_enrichr = TRUE,
+                                 name_suffix = "") {
   stopifnot(is.character(group), length(group) == 1L, nzchar(group))
+  stopifnot(is.character(name_suffix), length(name_suffix) == 1L,
+            !is.na(name_suffix))
   sfx <- .hdwgcna_suffix(group)
-  net <- paste0("wgcna_", sfx)
-  pt <- paste0("wgcna_", sfx, "_powertest")
-  sp <- paste0("wgcna_", sfx, "_soft_power")
-  dme <- paste0("wgcna_", sfx, "_dmes")
-  enr <- paste0("wgcna_", sfx, "_enrichr")
-  ms <- paste0("wgcna_", sfx, "_modscore")
+  # tar_hdwgcna() appends name_suffix to the END of each generated name
+  # (wgcna_1_powertest_0.6), so it goes last here too rather than after "wgcna_".
+  net <- paste0("wgcna_", sfx, name_suffix)
+  pt <- paste0("wgcna_", sfx, "_powertest", name_suffix)
+  sp <- paste0("wgcna_", sfx, "_soft_power", name_suffix)
+  dme <- paste0("wgcna_", sfx, "_dmes", name_suffix)
+  enr <- paste0("wgcna_", sfx, "_enrichr", name_suffix)
+  ms <- paste0("wgcna_", sfx, "_modscore", name_suffix)
   h1 <- .dea_h(heading_level)
   h2 <- .dea_h(heading_level + 1L)
   h3 <- .dea_h(heading_level + 2L)

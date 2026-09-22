@@ -22,7 +22,9 @@ utils::globalVariables(c(
 #'
 #' - `wgcna_prep` — RNA assay prep (join layers, normalise, variable features,
 #'   scale) then `SetupForWGCNA` + `MetacellsByGroups` and the metacell embedding.
-#' - `wgcna_<group>_powertest` — `SetDatExpr` for the group + `TestSoftPowers`.
+#' - `wgcna_<group>_powertest` — `SetDatExpr` for the group + `TestSoftPowers`,
+#'   returning the scale-free fit table and the chosen power rather than the
+#'   Seurat object.
 #' - `wgcna_<group>_soft_power` — the soft power chosen exactly as
 #'   `hdWGCNA::PlotSoftPowers` highlights it (lowest tested power with
 #'   `SFT.R.sq >= sft_rsquared`).
@@ -54,6 +56,12 @@ utils::globalVariables(c(
 #' @param group Character vector of cell-group labels to analyse (the values found
 #'   in `clustering_col`, e.g. `"MAIT"`). Per-group target names use a lower-cased,
 #'   sanitised version of the label.
+#'
+#'   When `clustering_col` holds several columns, `group` must be a **list** of
+#'   the same length, one character vector per column, since a clustering at one
+#'   resolution has different labels from another. A single character vector is
+#'   recycled to every column, which is only sensible when the columns really do
+#'   share their labels.
 #' @param create_prep Whether this call creates the shared `wgcna_prep` target.
 #'   `TRUE` (default) builds it; set `FALSE` on the additional `tar_hdwgcna()`
 #'   calls that reuse the same `wgcna_prep` (exactly one call must use `TRUE`).
@@ -64,6 +72,22 @@ utils::globalVariables(c(
 #' @param assay Assay used throughout (default `"RNA"`, log-normalised).
 #' @param clustering_col Metadata column holding the cell groups; used as
 #'   `ident.group` for the metacells and as `group.by`/`subset_by` downstream.
+#'
+#'   May be a character **vector**, to run the whole analysis over several
+#'   groupings of the same object in one call, for example two clustering
+#'   resolutions and an Azimuth annotation. Each column gets its own
+#'   `wgcna_prep`, since the metacells depend on the grouping, and its own set of
+#'   per-group targets. Every generated name is then suffixed to keep the scopes
+#'   apart; the suffix comes from the vector's names when it has any, otherwise
+#'   from the column name itself:
+#'
+#'   ```r
+#'   clustering_col = c(`0.3` = "clusters_0.3", `0.6` = "clusters_0.6")
+#'   # -> wgcna_prep_0.3, wgcna_1_0.3, ..., wgcna_prep_0.6, wgcna_1_0.6, ...
+#'   ```
+#'
+#'   A single unnamed column produces unsuffixed names, exactly as before, so
+#'   existing pipelines are unaffected.
 #' @param patient_col Biological-replicate column; used as the metacell harmony
 #'   variable and as `group.by.vars` for `ModuleEigengenes`.
 #' @param metacell_group_by `group.by` for `MetacellsByGroups`. Defaults to
@@ -76,6 +100,19 @@ utils::globalVariables(c(
 #' @param sft_rsquared Scale-free-topology R^2 threshold for the soft-power pick.
 #' @param tom_outdir Directory where `ConstructNetwork` writes the TOM.
 #' @param overwrite_tom Whether `ConstructNetwork` overwrites an existing TOM.
+#' @param delete_tom Whether to delete the topological overlap matrix as soon as
+#'   `ConstructNetwork()` has finished with it (default `TRUE`). The TOM is a
+#'   dense gene-by-gene matrix, roughly 3 GB per cell group here, and
+#'   `ConstructNetwork()` is the only thing that reads it: the modules,
+#'   eigengenes, connectivity and every downstream target are derived inside
+#'   that call, so the file is write-only for this pipeline.
+#'
+#'   Set `FALSE` if you intend to call the hdWGCNA functions that do re-read it,
+#'   namely `HubGeneNetworkPlot()`, `ModuleNetworkPlot()` and
+#'   `RunModuleUMAP()` / `ModuleUMAPPlot()`. Nothing in this package uses them.
+#'   Deleting only removes `<tom_outdir>/<tom_name>_TOM.rda` and any
+#'   `<tom_name>_block.N.rda` left behind by a multi-block run; the fitted
+#'   network object is untouched.
 #' @param n_threads Threads for `WGCNA::enableWGCNAThreads`.
 #' @param deployment Where the *relocatable* steps run: `"main"` (default, the
 #'   whole pipeline on the main process) or `"worker"` (send them to a `crew`
@@ -155,7 +192,12 @@ utils::globalVariables(c(
 #'     same `wgcna_prep`.
 #'   - `wgcna_<g>_powertest`: `SetDatExpr` for the group + `TestSoftPowers`
 #'     (one per group; `deployment = "main"`, since it loads the whole Seurat
-#'     object).
+#'     object). Returns a small `list`, not the Seurat object: `power_table`
+#'     (the scale-free fit table `hdWGCNA::PlotSoftPowers()` draws),
+#'     `soft_power`, `reached_threshold`, `sft_rsquared` and `group`. Keeping
+#'     the object here cost several GB of store per cell group to carry a few
+#'     hundred numbers; the network step rebuilds `datExpr` from `wgcna_prep`
+#'     instead, which is cheap next to `ConstructNetwork`.
 #'   - `wgcna_<g>_soft_power`: the selected soft power, a single number
 #'     (one per group; `deployment = "main"`).
 #'   - `wgcna_<g>`: `ConstructNetwork` + `ModuleEigengenes` + `ModuleConnectivity`
@@ -222,6 +264,7 @@ tar_hdwgcna <- function(
   sft_rsquared = 0.8,
   tom_outdir = "./out/hdwgcna/",
   overwrite_tom = TRUE,
+  delete_tom = TRUE,
   n_threads = 8,
   deployment = "main",
   controller = NULL,
@@ -237,8 +280,107 @@ tar_hdwgcna <- function(
   enrichr_corr_cutoff = 0.05,
   enrichr_dme_cutoff = 0.05,
   module_table_file = NULL,
-  module_gene_list = TRUE
+  module_gene_list = TRUE,
+  name_suffix = ""
 ) {
+  # ---- several groupings in one call -------------------------------------
+  # Each column is its own scope: the metacells depend on the grouping, so
+  # nothing is shared between them and the work is simply done once per column.
+  # Dispatching here, before any validation, keeps the single-scope path below
+  # byte-for-byte what it was, so an existing single-column call still produces
+  # unsuffixed target names and nothing already computed is invalidated.
+  # Several columns, or a single NAMED one: a name is how the caller asks for a
+  # suffix, so one scope out of a factory still gets `wgcna_prep_0.3` rather
+  # than the bare legacy name. An unnamed single column stays on the legacy path
+  # and keeps its unsuffixed names.
+  if (length(clustering_col) > 1L ||
+    (length(clustering_col) == 1L && !base::is.null(base::names(clustering_col)))) {
+    if (nzchar(name_suffix)) {
+      stop("`name_suffix` cannot be combined with several `clustering_col` values; ",
+        "the suffixes are derived from `clustering_col`, or from its names when it has any.")
+    }
+    # Names when supplied, otherwise the column itself, so an unnamed
+    # c("clusters_0.3", "clusters_0.6") still yields readable, distinct names.
+    keys <- base::names(clustering_col)
+    if (base::is.null(keys) || base::any(!nzchar(keys))) keys <- clustering_col
+    # Dots are legal in target names and the surrounding pipeline already uses
+    # them for resolutions (clusters_0.6, cluster_percent_0.6), so keep them
+    # rather than running the group sanitiser, which would give wgcna_prep_0_3.
+    suffixes <- base::tolower(base::gsub("[^A-Za-z0-9._]+", "_", keys))
+    suffixes <- base::paste0("_", base::gsub("^[._]+|[._]+$", "", suffixes))
+    if (base::anyDuplicated(suffixes)) {
+      stop("`clustering_col` must give distinct target-name suffixes; got: ",
+        base::paste(suffixes, collapse = ", "))
+    }
+    # One clustering has different labels from another, so `group` must say
+    # which labels belong to which column.
+    if (!base::is.list(group)) group <- base::rep(base::list(group), length(clustering_col))
+    if (length(group) != length(clustering_col)) {
+      stop("`group` must be a list with one element per `clustering_col` (",
+        length(clustering_col), "), or a single character vector to reuse for all; got ",
+        length(group), ".")
+    }
+    out <- base::lapply(base::seq_along(clustering_col), function(i) {
+      tar_hdwgcna(
+        group = group[[i]],
+        create_prep = create_prep,
+        input_obj = input_obj,
+        wgcna_name = wgcna_name,
+        assay = assay,
+        clustering_col = base::unname(clustering_col[[i]]),
+        patient_col = patient_col,
+        # Left NULL so it re-defaults to c(<this scope's column>, patient_col)
+        # rather than being resolved once from the whole vector.
+        metacell_group_by = metacell_group_by,
+        reduction = reduction,
+        gene_select = gene_select,
+        fraction = fraction,
+        metacell_k = metacell_k,
+        metacell_max_shared = metacell_max_shared,
+        metacell_dims = metacell_dims,
+        network_type = network_type,
+        sft_rsquared = sft_rsquared,
+        # ConstructNetwork writes the TOM as <tom_outdir>/<group>, and two
+        # resolutions can both have a cluster called "1", so each scope needs its
+        # own directory or the second silently overwrites the first's TOM.
+        # sub() on the trailing slash first: tom_outdir usually ends in "/", and
+        # file.path() would then produce "./data/hdwgcna//0.3". Harmless, but it
+        # shows up in every path the step prints.
+        tom_outdir = base::file.path(
+          base::sub("/+$", "", tom_outdir), base::sub("^_", "", suffixes[i])
+        ),
+        overwrite_tom = overwrite_tom,
+        delete_tom = delete_tom,
+        n_threads = n_threads,
+        deployment = deployment,
+        controller = controller,
+        trait_col = trait_col,
+        trait_groups = trait_groups,
+        mtc_cor_method = mtc_cor_method,
+        dme_test = dme_test,
+        dme_harmonized = dme_harmonized,
+        run_enrichr = run_enrichr,
+        enrichr_dbs = enrichr_dbs,
+        enrichr_max_genes = enrichr_max_genes,
+        enrichr_modules = enrichr_modules,
+        enrichr_corr_cutoff = enrichr_corr_cutoff,
+        enrichr_dme_cutoff = enrichr_dme_cutoff,
+        # One workbook per scope, or each would overwrite the last.
+        module_table_file = if (base::is.null(module_table_file)) NULL else {
+          base::sub("(\\.xlsx)$", base::paste0(suffixes[i], "\\1"), module_table_file)
+        },
+        module_gene_list = module_gene_list,
+        name_suffix = suffixes[i]
+      )
+    })
+    return(base::unlist(out, recursive = FALSE))
+  }
+  if (!is.character(name_suffix) || length(name_suffix) != 1L || is.na(name_suffix)) {
+    stop("`name_suffix` must be a single string.")
+  }
+  if (!is.logical(delete_tom) || length(delete_tom) != 1L || is.na(delete_tom)) {
+    stop("`delete_tom` must be a single TRUE/FALSE.")
+  }
   if (!is.character(group) || length(group) == 0L) {
     stop("`group` must be a non-empty character vector of cell-group labels.")
   }
@@ -316,8 +458,9 @@ tar_hdwgcna <- function(
   }
 
   # ---- shared metacell preparation (created once across all tar_hdwgcna calls) ----
+  prep_name <- base::paste0("wgcna_prep", name_suffix)
   prep <- if (isTRUE(create_prep)) list(targets::tar_target_raw(
-    name = "wgcna_prep",
+    name = prep_name,
     command = bquote({
       library(WGCNA)
       library(hdWGCNA)
@@ -343,11 +486,11 @@ tar_hdwgcna <- function(
 
   per_group <- lapply(group, function(g) {
     suffix <- .hdwgcna_suffix(g)
-    pt_name <- base::paste0("wgcna_", suffix, "_powertest")
-    sp_name <- base::paste0("wgcna_", suffix, "_soft_power")
-    net_name <- base::paste0("wgcna_", suffix)
-    dme_name <- base::paste0("wgcna_", suffix, "_dmes")
-    enr_name <- base::paste0("wgcna_", suffix, "_enrichr")
+    pt_name <- base::paste0("wgcna_", suffix, "_powertest", name_suffix)
+    sp_name <- base::paste0("wgcna_", suffix, "_soft_power", name_suffix)
+    net_name <- base::paste0("wgcna_", suffix, name_suffix)
+    dme_name <- base::paste0("wgcna_", suffix, "_dmes", name_suffix)
+    enr_name <- base::paste0("wgcna_", suffix, "_enrichr", name_suffix)
 
     powertest <- targets::tar_target_raw(
       name = pt_name,
@@ -360,24 +503,41 @@ tar_hdwgcna <- function(
         # one at a time. Kept single-threaded (no enableWGCNAThreads(), whose socket
         # cluster also clashes under concurrency); the multithreaded step is the
         # network target (ConstructNetwork), also on main.
-        obj <- hdWGCNA::SetDatExpr(.(as.name("wgcna_prep")), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
-        hdWGCNA::TestSoftPowers(obj, networkType = .(network_type))
+        obj <- hdWGCNA::SetDatExpr(.(as.name(prep_name)), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
+        obj <- hdWGCNA::TestSoftPowers(obj, networkType = .(network_type))
+        # Return the SCALE-FREE FIT TABLE, not the Seurat object it came in.
+        # TestSoftPowers only stashes a small table on a copy of the whole
+        # object, so storing the object costs several GB per cell group (it was
+        # ~3.5 GB each, ~70 GB across the groups) to keep a few hundred numbers.
+        # Nothing downstream needs the object: the network step rebuilds datExpr
+        # from wgcna_prep, which is cheap next to ConstructNetwork.
+        power_table <- hdWGCNA::GetPowerTable(obj)
+        pass <- power_table[["SFT.R.sq"]] >= .(sft_rsquared)
+        base::list(
+          # The table hdWGCNA::PlotSoftPowers() draws, so a report can redraw it
+          # from this target alone.
+          power_table = power_table,
+          # Lowest power reaching the scale-free fit threshold, else the highest
+          # tested; `reached_threshold` says which of the two happened, because
+          # the fallback is a very different claim about the network.
+          soft_power = if (base::any(pass, na.rm = TRUE)) {
+            base::min(power_table[["Power"]][base::which(pass)])
+          } else {
+            base::max(power_table[["Power"]], na.rm = TRUE)
+          },
+          reached_threshold = base::any(pass, na.rm = TRUE),
+          sft_rsquared = .(sft_rsquared),
+          group = .(g)
+        )
       }, where = environment()),
       deployment = "main",
-      description = base::paste0("hdWGCNA ", g, ": set datExpr + test soft powers")
+      description = base::paste0("hdWGCNA ", g, ": set datExpr + test soft powers; returns the scale-free fit table and the chosen power, not the Seurat object")
     )
 
     soft_power <- targets::tar_target_raw(
       name = sp_name,
       command = bquote({
-        library(hdWGCNA)
-        power_table <- hdWGCNA::GetPowerTable(.(as.name(pt_name)))
-        pass <- power_table[["SFT.R.sq"]] >= .(sft_rsquared)
-        if (any(pass, na.rm = TRUE)) {
-          min(power_table[["Power"]][which(pass)])
-        } else {
-          max(power_table[["Power"]], na.rm = TRUE)
-        }
+        .(as.name(pt_name))[["soft_power"]]
       }, where = environment()),
       deployment = "main",
       description = base::paste0("hdWGCNA ", g, ": soft power (lowest tested power with SFT.R.sq >= ", sft_rsquared, ")")
@@ -389,7 +549,35 @@ tar_hdwgcna <- function(
         library(WGCNA)
         library(hdWGCNA)
         WGCNA::enableWGCNAThreads(nThreads = .(n_threads))
-        obj <- hdWGCNA::ConstructNetwork(.(as.name(pt_name)), soft_power = .(as.name(sp_name)), tom_name = .(g), tom_outdir = .(tom_outdir), overwrite_tom = .(overwrite_tom))
+        # datExpr is rebuilt here rather than inherited from the power-test
+        # target, which now returns only its fit table. SetDatExpr is a subset
+        # and is cheap next to ConstructNetwork; carrying the object between the
+        # two steps instead cost several GB of store per cell group.
+        obj <- hdWGCNA::SetDatExpr(.(as.name(prep_name)), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
+        obj <- hdWGCNA::ConstructNetwork(obj, soft_power = .(as.name(sp_name)), tom_name = .(g), tom_outdir = .(tom_outdir), overwrite_tom = .(overwrite_tom))
+        if (.(delete_tom)) {
+          # ConstructNetwork() has already derived the modules from the TOM, and
+          # nothing downstream re-reads it, so the file is dead weight from here
+          # on: a dense gene-by-gene matrix, gigabytes per cell group. Deleted
+          # immediately rather than at the end of the target, so the disk is
+          # freed even if a later step of this same target fails.
+          # Exact paths rather than a regex, because a group name may contain
+          # spaces or regex metacharacters ("CD4 TCM").
+          .tom_files <- base::c(
+            base::file.path(.(tom_outdir), base::paste0(.(g), "_TOM.rda")),
+            base::Sys.glob(base::file.path(.(tom_outdir), base::paste0(.(g), "_block.*.rda")))
+          )
+          .tom_files <- base::unique(.tom_files[base::file.exists(.tom_files)])
+          if (base::length(.tom_files)) {
+            .freed <- base::sum(base::file.size(.tom_files), na.rm = TRUE)
+            base::file.remove(.tom_files)
+            base::message(
+              "hdWGCNA ", .(g), ": removed ", base::length(.tom_files),
+              " TOM file(s), freeing ",
+              base::round(.freed / 1024^3, 2), " GB (delete_tom = TRUE)"
+            )
+          }
+        }
         obj <- hdWGCNA::ModuleEigengenes(obj, group.by.vars = .(patient_col), assay = .(assay))
         obj <- hdWGCNA::ModuleConnectivity(obj, group.by = .(clustering_col), group_name = .(g), assay = .(assay))
         obj <- hdWGCNA::ResetModuleNames(obj, new_name = .(paste0(g, "-M")))
@@ -529,7 +717,7 @@ tar_hdwgcna <- function(
     # holding several full network objects in memory at once.
     if (!is.null(module_table_file)) {
       modcomp <- targets::tar_target_raw(
-        name = base::paste0("wgcna_", suffix, "_modcomp"),
+        name = base::paste0("wgcna_", suffix, "_modcomp", name_suffix),
         command = bquote({
           library(WGCNA)
           library(hdWGCNA)
@@ -544,7 +732,7 @@ tar_hdwgcna <- function(
     # Per-group module -> gene-vector list (the building block of the nested
     # `wgcna_module_gene_list`). Light target (just the GetModules() assignment).
     modgenes <- targets::tar_target_raw(
-      name = base::paste0("wgcna_", suffix, "_modgenes"),
+      name = base::paste0("wgcna_", suffix, "_modgenes", name_suffix),
       command = bquote({
         library(hdWGCNA)
         scitargets::hdwgcna_module_gene_list(.(as.name(net_name)))
@@ -559,7 +747,7 @@ tar_hdwgcna <- function(
     # cell's cell type and clinical condition so the report can group by them.
     # Loads the full network object -> "main".
     modscore <- targets::tar_target_raw(
-      name = base::paste0("wgcna_", suffix, "_modscore"),
+      name = base::paste0("wgcna_", suffix, "_modscore", name_suffix),
       command = bquote({
         library(Seurat)
         library(hdWGCNA)
@@ -579,10 +767,12 @@ tar_hdwgcna <- function(
 
   # One workbook per tar_hdwgcna() call, with a worksheet per cell group.
   module_tab <- if (!is.null(module_table_file)) {
-    modcomp_names <- base::paste0("wgcna_", vapply(group, .hdwgcna_suffix, character(1)), "_modcomp")
+    modcomp_names <- base::paste0(
+      "wgcna_", vapply(group, .hdwgcna_suffix, character(1)), "_modcomp", name_suffix
+    )
     tabs_expr <- base::as.call(c(base::quote(base::list), lapply(modcomp_names, as.name)))
     list(targets::tar_target_raw(
-      name = "wgcna_module_composition",
+      name = base::paste0("wgcna_module_composition", name_suffix),
       command = bquote({
         tabs <- .(tabs_expr)
         base::names(tabs) <- .(group)
@@ -612,10 +802,12 @@ tar_hdwgcna <- function(
   # tar_hdwgcna() call (fixed name `wgcna_module_gene_list`); if you make several
   # calls, set `module_gene_list = FALSE` on all but one to avoid a name clash.
   gene_list_tab <- if (isTRUE(module_gene_list)) {
-    modgenes_names <- base::paste0("wgcna_", vapply(group, .hdwgcna_suffix, character(1)), "_modgenes")
+    modgenes_names <- base::paste0(
+      "wgcna_", vapply(group, .hdwgcna_suffix, character(1)), "_modgenes", name_suffix
+    )
     genes_expr <- base::as.call(c(base::quote(base::list), lapply(modgenes_names, as.name)))
     list(targets::tar_target_raw(
-      name = "wgcna_module_gene_list",
+      name = base::paste0("wgcna_module_gene_list", name_suffix),
       command = bquote({
         ls <- .(genes_expr)
         base::names(ls) <- .(group)

@@ -1,6 +1,6 @@
 Package: scitargets
 Title: Single-cell analysis with targets pipeline
-Version: 1.5.0
+Version: 1.7.0
 Description: This package provides target factories and utilities for analyzing single-cell data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
@@ -56,7 +56,8 @@ Suggests:
     quarto (>= 1.5.1),
     tarchetypes,
     WGCNA,
-    hdWGCNA
+    hdWGCNA,
+    pbmcref.SeuratData
 VignetteBuilder: quarto
 Depends: 
     R (>= 3.5)
@@ -65,4 +66,4 @@ Authors@R:
     person("Pierre", "Solomon", , "pierre.solomon@laposte.net", role = c("aut", "cre"))
 Author: Pierre Solomon
 Maintainer: Pierre Solomon <pierre.solomon@laposte.net>
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0

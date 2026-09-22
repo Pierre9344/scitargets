@@ -43,6 +43,8 @@ export(hdwgcna_module_trait_table)
 export(hdwgcna_report_lines)
 export(is_scitargets_dea)
 export(load_seurat_data_10X)
+export(local_homolog_table)
+export(local_pbmcref)
 export(markers_table)
 export(normalize_dea_list)
 export(pca_plot)
@@ -58,5 +60,7 @@ export(write_dea_xlsx)
 importFrom(ggiraph,girafe)
 importFrom(ggpubr,annotate_figure)
 importFrom(ggrepel,geom_text_repel)
-importFrom(magrittr,"%<>%")
-importFrom(magrittr,"%>%")
+importFrom(magrittr,
+  "%<>%",
+  "%>%"
+)
