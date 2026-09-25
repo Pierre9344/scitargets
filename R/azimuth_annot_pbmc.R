@@ -1,7 +1,7 @@
 #' Azimuth annotations for PBMC
 #'
 #' @param obj a Seurat object with an SCT assay and a metadata field corresponding to cell clusters
-#' @param cluster_to_use Name of the cells clusters
+#' @param cluster_to_use **Deprecated** Name of the cells clusters
 #' @param reference Reference passed to [Azimuth::RunAzimuth()]. `NULL` (the
 #'   default) uses the `pbmcref.SeuratData` package's own `azimuth/` directory
 #'   when that package is installed, and falls back to the name `"pbmcref"`
@@ -48,18 +48,18 @@ azimuth_annot_pbmc <- function(obj, cluster_to_use = "clusters_0.5",
   if (is.null(obj)) {
     stop("obj must be a Seurat object")
   }
-  if (!is.character(cluster_to_use)) {
-    stop("cluster_to_use must br a character variable present in the meta.data of obj")
-  } else if (cluster_to_use %in% obj@meta.data) {
-    stop("cluster_to_use must br a character variable present in the meta.data of obj")
-  }
+  #if (!is.character(cluster_to_use)) {
+  #  stop("cluster_to_use must be a character variable present in the meta.data of obj")
+  #} else if (cluster_to_use %in% obj@meta.data) {
+  #  stop("cluster_to_use must be a character variable present in the meta.data of obj")
+  #}
   if (is.null(reference)) {
     reference <- local_pbmcref() %||% "pbmcref"
   }
   if (is.null(homolog_table)) {
     homolog_table <- local_homolog_table()
   }
-  SeuratObject::Idents(obj) <- cluster_to_use
+  #SeuratObject::Idents(obj) <- cluster_to_use
   PreviousDefaultAssay <- SeuratObject::DefaultAssay(obj)
   SeuratObject::DefaultAssay(obj) <- "RNA"
   SeuratObject::DefaultAssay(obj) <- PreviousDefaultAssay

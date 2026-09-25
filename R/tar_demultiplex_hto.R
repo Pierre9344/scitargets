@@ -2,7 +2,7 @@ utils::globalVariables(c(
   "min_RNA", "max_RNA", "mt_cutoff", "cellranger_path",
   "project_name", "r_id", "r_path", "p_id", "min_g", "max_g", "mt",
   "id", "feats", "seurat", "singlets_dim", "cluster_to_use",
-  "singlets_clusters", "resolutions", "seed"
+  "singlets_clusters", "resolutions", "seed", "obj", "compute_azimuth"
 ))
 
 #' Targets factory to demultiplex HTO-hashed samples
@@ -28,7 +28,7 @@ utils::globalVariables(c(
 #' @param mt_percent_cutoff Cutoff for the percentage of mitochondrial counts a cell can have.
 #' @param singlets_dim_to_use PCA dimensions to use when computing UMAP and t-SNE (only used after extracting the singlets cells).
 #' @param singlets_feat_to_remove If not NULL, a character variable indicating a targets step that contains the name of features (genes) to remove from the singlets.
-#' @param singlets_clusters_to_use Name of cell cluster to use when identifying markers or running azimuth celltype annotation
+#' @param singlets_clusters_to_use Name of cell cluster to use when identifying markers
 #' @param run_azimuth If true, run azimuth using the (human) pbmc-ref of SeuratData
 #' @param clusters_res_to_try umeric vectors of values superior to 0. Represent the resolutions to try for computing cells clusters. Default to values between 0.2 to 1.5 with a step of 0.1.
 #' @param deployment Where the demultiplexing steps run: `"main"` (default) or
@@ -110,9 +110,7 @@ tar_demultiplex_hto <- function(
   }
 
   hto_demux_steps <- list(
-    ##################
-    ##  Parameters  ##
-    ##################
+    #----  Parameters  ----#
     mt(
       name = base::paste0("parameters_", run_id),
       command = base::substitute(
@@ -135,9 +133,7 @@ tar_demultiplex_hto <- function(
       ),
       description = base::paste0("parameters of the run ", run_id, " from the ", project_id, " project.")
     ),
-    ##################
-    ##  Files path  ##
-    ##################
+    #----  Files path ----#
     mt(
       name = base::paste0("cellranger_output_", run_id),
       command = base::substitute(
@@ -150,9 +146,7 @@ tar_demultiplex_hto <- function(
         run_id, "_NovaSeqX run (", project_id, ")"
       )
     ),
-    ################
-    ##  Analysis  ##
-    ################
+    #----  Analysis ----#
     # Pinned to main (NOT via mt()): Seurat metadata creation bugs on crew workers.
     targets::tar_target_raw(
       name = seurat_obj_target_name(run_id, "raw"),
@@ -201,15 +195,22 @@ tar_demultiplex_hto <- function(
     mt(
       name = seurat_obj_target_name(run_id, "singlets"),
       command = base::substitute(
-        scitargets::extract_singlets(
-          obj = seurat,
-          dims_to_use = singlets_dim,
-          clusters_resolutions = resolutions
-        ),
+        {
+          obj <- scitargets::extract_singlets(
+            obj = seurat,
+            dims_to_use = singlets_dim,
+            clusters_resolutions = resolutions
+          )
+          if (compute_azimuth) {
+            obj <- scitargets::azimuth_annot_pbmc(obj = obj)
+          }
+          return(obj)
+        },
         list(
           seurat = base::as.symbol(seurat_obj_target_name(run_id, "non_neg")),
           singlets_dim = singlets_dim_to_use,
-          resolutions = clusters_res_to_try
+          resolutions = clusters_res_to_try,
+          compute_azimuth = is.null(singlets_feat_to_remove) & run_azimuth
         )
       ),
       description = base::paste0(run_id, ": singlets cells (all features of the original object).")
@@ -223,17 +224,24 @@ tar_demultiplex_hto <- function(
       mt(
         name = seurat_obj_target_name(run_id, "feat_removed_singlets"),
         command = base::substitute(
-          scitargets::extract_singlets(
-            obj = seurat,
-            dims_to_use = singlets_dim,
-            feat_to_remove = feats,
-            clusters_resolutions = resolutions
-          ),
+          {
+            obj <- scitargets::extract_singlets(
+              obj = seurat,
+              dims_to_use = singlets_dim,
+              feat_to_remove = feats,
+              clusters_resolutions = resolutions
+            )
+            if (compute_azimuth) {
+              obj <- scitargets::azimuth_annot_pbmc(obj = obj)
+            }
+            return(obj)
+          },
           list(
             seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
             singlets_dim = singlets_dim_to_use,
             feats = base::as.symbol(singlets_feat_to_remove),
-            resolutions = clusters_res_to_try
+            resolutions = clusters_res_to_try,
+            compute_azimuth = run_azimuth
           )
         ),
         description = base::paste0(run_id, ": singlets cell without the non desired features.")
@@ -241,9 +249,7 @@ tar_demultiplex_hto <- function(
     )
   }
 
-  # If clusters names specified:
-  # - Identify markers
-  # - Add azimuth annotations
+  # Identify markers if a clusters is specified specified
   if (!is.null(singlets_clusters_to_use)) {
     if (is.null(singlets_feat_to_remove)) {
       hto_demux_steps <- c(
@@ -271,24 +277,6 @@ tar_demultiplex_hto <- function(
           )
         )
       )
-      if (run_azimuth) {
-        hto_demux_steps <- c(
-          hto_demux_steps,
-          mt(
-            name = seurat_obj_target_name(run_id, "azimuth"),
-            command = {
-              base::substitute(
-                scitargets::azimuth_annot_pbmc(seurat, cluster_to_use),
-                list(
-                  seurat = base::as.symbol(seurat_obj_target_name(run_id, "singlets")),
-                  cluster_to_use = singlets_clusters_to_use
-                )
-              )
-            },
-            description = base::paste0(run_id, ": singlets cell with azimuth celltype annotation.")
-          )
-        )
-      }
     } else {
       hto_demux_steps <- c(
         hto_demux_steps,
@@ -313,24 +301,6 @@ tar_demultiplex_hto <- function(
           description = base::paste0(run_id, ": Markers identified for the different cells clusters (", singlets_clusters_to_use, ", after features removal)")
         )
       )
-      if (run_azimuth) {
-        hto_demux_steps <- c(
-          hto_demux_steps,
-          mt(
-            name = seurat_obj_target_name(run_id, "azimuth"),
-            command = {
-              base::substitute(
-                scitargets::azimuth_annot_pbmc(seurat, cluster_to_use),
-                list(
-                  seurat = base::as.symbol(seurat_obj_target_name(run_id, "feat_removed_singlets")),
-                  cluster_to_use = singlets_clusters_to_use
-                )
-              )
-            },
-            description = base::paste0(run_id, ": singlets cell with azimuth celltype annotation (after features removal).")
-          )
-        )
-      }
     }
   }
   return(hto_demux_steps)

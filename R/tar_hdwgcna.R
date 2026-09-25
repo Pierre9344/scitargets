@@ -67,7 +67,10 @@ utils::globalVariables(c(
 #'   calls that reuse the same `wgcna_prep` (exactly one call must use `TRUE`).
 #'   When `FALSE`, `input_obj` is not required.
 #' @param input_obj Name of the upstream Seurat-object target to start from
-#'   (required when `create_prep = TRUE`).
+#'   (required when `create_prep = TRUE`). That target may hold the Seurat
+#'   object itself, or the PATH to a file holding it, as a `format = "file"`
+#'   target does; [as_seurat()] accepts either and says which file types it
+#'   reads.
 #' @param wgcna_name Name of the hdWGCNA experiment (`SetupForWGCNA`).
 #' @param assay Assay used throughout (default `"RNA"`, log-normalised).
 #' @param clustering_col Metadata column holding the cell groups; used as
@@ -465,7 +468,9 @@ tar_hdwgcna <- function(
       library(WGCNA)
       library(hdWGCNA)
       WGCNA::enableWGCNAThreads(nThreads = .(n_threads))
-      obj <- .(as.name(input_obj))
+      # as_seurat(): the upstream target may hold the object itself OR a path to
+      # it, as a `format = "file"` target does. See ?as_seurat.
+      obj <- scitargets::as_seurat(.(as.name(input_obj)))
       SeuratObject::DefaultAssay(obj) <- .(assay)
       obj[[.(assay)]] <- SeuratObject::JoinLayers(obj[[.(assay)]])
       obj <- Seurat::NormalizeData(obj, verbose = FALSE)

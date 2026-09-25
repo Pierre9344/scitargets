@@ -1039,7 +1039,8 @@ run_deseq2 <- function(counts, col_data, group1, group2,
 #' `cluster`), running the requested differential-expression level(s) and the
 #' downstream GO and GSEA enrichment.
 #'
-#' @param seurat_obj A Seurat object.
+#' @param seurat_obj A Seurat object, or a path to a file holding one (see
+#'   [as_seurat()] for the file types accepted).
 #' @param group_by Metadata column holding the group labels.
 #' @param cluster_by Metadata column holding the clustering (must differ from
 #'   `group_by`); pass `character()` / `NA` to compare across all cells.
@@ -1220,6 +1221,10 @@ run_dea <- function(seurat_obj,
   level <- match.arg(level)
   species <- match.arg(species)
   pb_test <- match.arg(pb_test)
+  # Accept either the object or a path to it, so a caller whose Seurat target is
+  # `format = "file"` does not have to read it first. A real object passes
+  # straight through, so this costs every other caller nothing. See ?as_seurat.
+  seurat_obj <- as_seurat(seurat_obj)
   # Per-level adjusted-p cutoffs: drive the volcano horizontal cutoff line and
   # the GO foreground-gene selection for that level (stored on the object).
   padj_cutoffs <- list(

@@ -1,3 +1,16 @@
+# scitargets 1.8.0
+
+- New `as_seurat()`: takes a Seurat object **or a path to a file holding one**, and returns the object. It reads `.qs2`/`.qs` with `qs2::qs_read()`, `.rds` with `readRDS()` and `.RData`/`.rda` with `load()`, and errors with a clear message on anything else, on a file whose contents are not a Seurat object, or on an `.RData` holding more than one object (`save()`/`load()` store the variable's NAME, so a multi-object file has no unambiguous answer).
+
+- `tar_hdwgcna()` and `run_dea()` accept either form for their Seurat input. A pipeline whose merged object is too expensive to rebuild on every machine can write it to disk and declare its target `format = "file"`, so the normalisation runs once where there is enough memory and the other machines read the result; the target's value is then a path rather than an object, and `wgcna_prep` used to fail on it with `no applicable method for 'DefaultAssay<-' applied to an object of class "character"`. A target that still holds the object passes straight through, so nothing changes for existing pipelines.
+
+- `as_seurat()` deliberately does **not** cache. A pipeline whose branches each need the object should memoise on its own side, so that the choice between paying one read per branch and holding the object in memory stays with the pipeline.
+
+- The `cluster_to_use` argument of the `azimuth_annot_pbmc` function is now deprecated.
+
+- `tar_demultiplex_hto` was modified to:
+  - not create a new steps with the azimuth annotation. If needed, the annotations will be added directly to the `_singlets` or `_feat_removed_singlets` steps depending on whether features need to be removed or not.
+
 # scitargets 1.7.0
 
 - `azimuth_annot_pbmc()` now uses the **installed** PBMC reference instead of downloading it. `Azimuth:::LoadReference()` treats its `path` as a URL unless the string is an existing local directory, so the previous `reference = "pbmcref"` always fetched from seurat.nygenome.org even when `pbmcref.SeuratData` was installed and loading fine. On a host that cannot reach that server the annotation failed outright: on an HPC compute node behind a proxy answering `CONNECT tunnel failed, response 403`, a pipeline died at the annotation step after 38 minutes of upstream work, with the reference sitting installed in the library the whole time. The default `reference = NULL` now resolves `system.file("azimuth", package = "pbmcref.SeuratData")` and passes that directory, which takes `LoadReference()`'s local branch; it falls back to the name `"pbmcref"` when the package is absent, so behaviour is unchanged where the package was never installed. Anywhere else this is simply faster and reproducible, since the annotation no longer depends on a remote host being up. Pass `reference` explicitly to use a reference from another directory.

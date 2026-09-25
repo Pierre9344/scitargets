@@ -2,6 +2,7 @@
 
 export("%<>%")
 export("%>%")
+export(as_seurat)
 export(azimuth_annot_pbmc)
 export(composition_boxplot)
 export(composition_lines)
