@@ -1,6 +1,6 @@
 Package: scitargets
 Title: Single-cell analysis with targets pipeline
-Version: 1.8.0
+Version: 1.9.0
 Description: This package provides target factories and utilities for analyzing single-cell data with targets pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8

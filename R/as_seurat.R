@@ -90,3 +90,70 @@ as_seurat <- function(x, nthreads = 1L) {
   }
   obj
 }
+
+#' File extensions [as_seurat()] and [save_seurat()] understand
+#'
+#' Exposed so a factory can reject a badly named path when the pipeline is
+#' DEFINED rather than after the work that was supposed to fill it.
+#'
+#' @returns A character vector of lower-case extensions, without the dot.
+#' @export
+seurat_file_formats <- function() {
+  c("qs2", "qs", "rds", "rdata", "rda")
+}
+
+#' Write a Seurat object, choosing the writer from the file extension
+#'
+#' The counterpart of [as_seurat()]: the two agree on which extensions mean
+#' which format, so a file written here reads back there.
+#'
+#' | extension | writer |
+#' | --- | --- |
+#' | `.qs2`, `.qs` | [qs2::qs_save()] |
+#' | `.rds` | [saveRDS()] |
+#' | `.RData`, `.rda` | [save()], under the name `obj` |
+#'
+#' Prefer `.qs2`: it is markedly smaller and faster than `.rds` for a Seurat
+#' object, and unlike `.RData` it stores a value rather than a variable name.
+#'
+#' The parent directory is created when missing, so a caller does not have to.
+#'
+#' @param obj A Seurat object.
+#' @param path Destination file. Its extension picks the writer.
+#' @param nthreads Compression threads, passed to [qs2::qs_save()]. Ignored by
+#'   the other writers.
+#' @returns `path`, invisibly, so the call can end a `format = "file"` target.
+#' @export
+save_seurat <- function(obj, path, nthreads = 1L) {
+  if (!methods::is(obj, "Seurat")) {
+    stop("save_seurat(): `obj` must be a Seurat object, got ",
+      base::class(obj)[1L], ".", call. = FALSE)
+  }
+  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("save_seurat(): `path` must be a single non-empty file path.",
+      call. = FALSE)
+  }
+  ext <- base::tolower(base::sub(".*\\.", "", base::basename(path)))
+  if (!ext %in% seurat_file_formats()) {
+    stop("save_seurat(): do not know how to write '", base::basename(path),
+      "'. Supported extensions: .qs2, .qs, .rds, .RData, .rda.", call. = FALSE)
+  }
+  base::dir.create(base::dirname(path), recursive = TRUE, showWarnings = FALSE)
+  switch(ext,
+    qs2 = ,
+    qs = {
+      if (!requireNamespace("qs2", quietly = TRUE)) {
+        stop("save_seurat(): writing '", base::basename(path), "' needs the ",
+          "qs2 package. install.packages(\"qs2\")", call. = FALSE)
+      }
+      qs2::qs_save(obj, path, nthreads = nthreads)
+    },
+    rds = base::saveRDS(obj, path),
+    rdata = ,
+    # Exactly one object, named `obj`, so as_seurat() finds a single name to
+    # restore. save() stores the NAME rather than the value, which is why a
+    # multi-object .RData has no unambiguous answer on the way back in.
+    rda = base::save(obj, file = path)
+  )
+  invisible(path)
+}

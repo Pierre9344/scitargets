@@ -12,6 +12,82 @@ utils::globalVariables(c(
   base::gsub("^_+|_+$", "", s)
 }
 
+# Insert a scope suffix before a path's extension, so several clustering
+# columns in one tar_hdwgcna() call get one prep file each rather than
+# overwriting one another: "out/prep.qs2" + "_0.3" -> "out/prep_0.3.qs2".
+.hdwgcna_suffix_path <- function(path, suffix) {
+  if (base::is.null(path) || !nzchar(suffix)) {
+    return(path)
+  }
+  ext <- base::regmatches(path, base::regexpr("\\.[^.\\\\/]+$", path))
+  base::paste0(base::sub("\\.[^.\\\\/]+$", "", path), suffix, ext)
+}
+
+#' Is a file a usable `wgcna_prep` object?
+#'
+#' [tar_hdwgcna()] can be pointed at a pre-built metacell object with its
+#' `prep_path` argument, so that the expensive preparation runs once on a
+#' machine with enough memory and every other machine reads the result. This is
+#' the check it applies before deciding to reuse such a file.
+#'
+#' A file is usable when all of the following hold. Each failure is reported as
+#' a message and makes the function return `FALSE`, so a broken or half-copied
+#' file leads to a rebuild rather than to an obscure error several steps later.
+#'
+#' 1. The path exists and is not empty.
+#' 2. [as_seurat()] can read it, which also means the extension is one of the
+#'    supported ones and the contents are a Seurat object.
+#' 3. The object carries the hdWGCNA experiment named `wgcna_name`, i.e.
+#'    `SetupForWGCNA()` was run on it with that name.
+#' 4. That experiment has a metacell object attached, i.e.
+#'    `MetacellsByGroups()` was run.
+#'
+#' The file is read in full, because a truncated copy is exactly the failure
+#' this is meant to catch and only a real read finds it. That costs one extra
+#' read of the object per pipeline run.
+#'
+#' @param path Path to the candidate file.
+#' @param wgcna_name Name of the hdWGCNA experiment to look for.
+#' @returns `TRUE` or `FALSE`.
+#' @export
+hdwgcna_prep_is_valid <- function(path, wgcna_name = "hdwgcna") {
+  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
+    return(FALSE)
+  }
+  if (!base::file.exists(path)) {
+    base::message("hdwgcna_prep_is_valid(): no file at '", path, "'.")
+    return(FALSE)
+  }
+  if (base::isTRUE(base::file.size(path) == 0)) {
+    base::message("hdwgcna_prep_is_valid(): '", path, "' is empty.")
+    return(FALSE)
+  }
+  obj <- base::tryCatch(as_seurat(path), error = function(e) {
+    base::message("hdwgcna_prep_is_valid(): could not read '", path, "': ",
+      base::conditionMessage(e))
+    NULL
+  })
+  if (base::is.null(obj)) {
+    return(FALSE)
+  }
+  if (!wgcna_name %in% base::names(obj@misc)) {
+    base::message("hdwgcna_prep_is_valid(): '", path, "' holds a Seurat object ",
+      "with no '", wgcna_name, "' hdWGCNA experiment (SetupForWGCNA was not run ",
+      "with that wgcna_name).")
+    return(FALSE)
+  }
+  has_metacells <- base::tryCatch(
+    !base::is.null(hdWGCNA::GetMetacellObject(obj, wgcna_name = wgcna_name)),
+    error = function(e) FALSE
+  )
+  if (!base::isTRUE(has_metacells)) {
+    base::message("hdwgcna_prep_is_valid(): '", path, "' has no metacell object ",
+      "for '", wgcna_name, "' (MetacellsByGroups was not run).")
+    return(FALSE)
+  }
+  TRUE
+}
+
 #' Targets factory for an hdWGCNA co-expression analysis
 #'
 #' Builds the `targets` pipeline steps for a high-dimensional WGCNA (hdWGCNA)
@@ -66,6 +142,17 @@ utils::globalVariables(c(
 #'   `TRUE` (default) builds it; set `FALSE` on the additional `tar_hdwgcna()`
 #'   calls that reuse the same `wgcna_prep` (exactly one call must use `TRUE`).
 #'   When `FALSE`, `input_obj` is not required.
+#' @param prep_path Where the prepared metacell object is cached, or `NULL` to
+#'   keep it in the `targets` store as an ordinary object target. When set
+#'   (the default, `"./out/seurat/wgcna_prep.qs"`), `wgcna_prep` becomes a
+#'   `format = "file"` target whose value is this path: it reuses the file when
+#'   [hdwgcna_prep_is_valid()] accepts it, and otherwise builds the object,
+#'   writes it with [save_seurat()] and returns the path. The extension picks
+#'   the format (`.qs2`/`.qs`, `.rds`, `.RData`/`.rda`) and is checked when the
+#'   pipeline is defined. See the "Caching the prepared object" section for why
+#'   this exists and how to build the file by hand. With several
+#'   `clustering_col` values the scope suffix is inserted before the extension,
+#'   so `"out/prep.qs"` becomes `out/prep_0.3.qs` and `out/prep_0.6.qs`.
 #' @param input_obj Name of the upstream Seurat-object target to start from
 #'   (required when `create_prep = TRUE`). That target may hold the Seurat
 #'   object itself, or the PATH to a file holding it, as a `format = "file"`
@@ -186,13 +273,76 @@ utils::globalVariables(c(
 #'   name, so when several `tar_hdwgcna()` calls are spliced into one pipeline set
 #'   `module_gene_list = FALSE` on all but one to avoid a duplicate-target error.
 #'
+#' @section Caching the prepared object:
+#'
+#' `wgcna_prep` is the memory peak of this factory, and by a wide margin. It
+#' holds the whole Seurat object, adds a normalised assay layer and a dense
+#' `scale.data` over the variable features, and only then reduces to metacells.
+#' On a dataset of ~50k cells that is comfortably into double-digit GB, which is
+#' more than a small server or a memory-capped container has, while the steps
+#' below it work on metacells and are far cheaper.
+#'
+#' `prep_path` exists so that peak has to be paid once, on a machine that can
+#' afford it, rather than on every machine that wants the results. When it is
+#' set, `wgcna_prep` becomes a `format = "file"` target that:
+#'
+#' 1. checks the file with [hdwgcna_prep_is_valid()] and, if it passes, returns
+#'    the path without building anything;
+#' 2. otherwise runs the preparation, writes it with [save_seurat()] and returns
+#'    the path.
+#'
+#' So the usual workflow is to run the pipeline once where there is memory, copy
+#' the resulting file across with the rest of `out/`, and run everything else
+#' anywhere. **The file wins over the pipeline**: an upstream change does not
+#' refresh it, exactly so that a machine which cannot rebuild it does not try.
+#' Delete the file to force a rebuild.
+#'
+#' The object is a plain Seurat object, so it can also be built outside the
+#' pipeline. This is what the target does, and a hand-made file only has to
+#' match it:
+#'
+#' ```r
+#' library(Seurat); library(hdWGCNA); library(WGCNA)
+#' obj <- scitargets::as_seurat("out/seurat/merged_filtered.qs2")
+#' DefaultAssay(obj) <- "RNA"
+#' obj[["RNA"]] <- SeuratObject::JoinLayers(obj[["RNA"]])
+#' obj <- NormalizeData(obj, verbose = FALSE)
+#' obj <- FindVariableFeatures(obj, verbose = FALSE)
+#' obj <- ScaleData(obj, features = VariableFeatures(obj), verbose = FALSE)
+#' obj <- SetupForWGCNA(obj, gene_select = "fraction", fraction = 0.05,
+#'                      wgcna_name = "hdwgcna")
+#' obj <- MetacellsByGroups(obj,
+#'   group.by    = c("predicted.celltype.l2", "patient_id"),
+#'   ident.group = "predicted.celltype.l2",
+#'   reduction   = "harmony", k = 25, max_shared = 10)
+#' obj <- NormalizeMetacells(obj)
+#' obj <- ScaleMetacells(obj, features = VariableFeatures(obj))
+#' obj <- RunPCAMetacells(obj, features = VariableFeatures(obj))
+#' obj <- RunHarmonyMetacells(obj, group.by.vars = "patient_id")
+#' obj <- RunUMAPMetacells(obj, reduction = "harmony", dims = 1:15)
+#' scitargets::save_seurat(obj, "./out/seurat/wgcna_prep.qs")
+#' ```
+#'
+#' Every argument above must match the `tar_hdwgcna()` call that will read the
+#' file (`assay`, `gene_select`, `fraction`, `wgcna_name`, `metacell_group_by`,
+#' `clustering_col`, `reduction`, `metacell_k`, `metacell_max_shared`,
+#' `metacell_dims`, `patient_col`), because none of them is re-checked: only the
+#' structural conditions in [hdwgcna_prep_is_valid()] are. A file prepared with
+#' a different `fraction` is accepted and silently changes the gene set the
+#' networks are built on.
+#'
+#' Set `prep_path = NULL` to restore the previous behaviour, where the prepared
+#' object is an ordinary target kept in the `targets` store.
+#'
 #' @returns A list of `targets` objects to splice into a `targets` pipeline. With
 #'   `<g>` the lower-cased, sanitised label of each `group` element (e.g. `"MAIT"`
 #'   becomes `mait`, `"CD8 TEM"` becomes `cd8_tem`), the following steps are created:
 #'   - `wgcna_prep`: the shared metacell preparation (`deployment = "main"`).
 #'     Created only when `create_prep = TRUE` (the default); omit it (set
 #'     `create_prep = FALSE`) on the other `tar_hdwgcna()` calls that reuse the
-#'     same `wgcna_prep`.
+#'     same `wgcna_prep`. With `prep_path` set (the default) this is a
+#'     `format = "file"` target whose value is that path rather than the object;
+#'     see the "Caching the prepared object" section.
 #'   - `wgcna_<g>_powertest`: `SetDatExpr` for the group + `TestSoftPowers`
 #'     (one per group; `deployment = "main"`, since it loads the whole Seurat
 #'     object). Returns a small `list`, not the Seurat object: `power_table`
@@ -251,6 +401,7 @@ utils::globalVariables(c(
 tar_hdwgcna <- function(
   group,
   create_prep = TRUE,
+  prep_path = "./out/seurat/wgcna_prep.qs",
   input_obj = NULL,
   wgcna_name = "hdwgcna",
   assay = "RNA",
@@ -327,6 +478,10 @@ tar_hdwgcna <- function(
       tar_hdwgcna(
         group = group[[i]],
         create_prep = create_prep,
+        # One prep file per scope, for the same reason as tom_outdir below: the
+        # metacells depend on the clustering column, so two resolutions sharing
+        # one path would each read the other's object.
+        prep_path = .hdwgcna_suffix_path(prep_path, suffixes[i]),
         input_obj = input_obj,
         wgcna_name = wgcna_name,
         assay = assay,
@@ -432,6 +587,19 @@ tar_hdwgcna <- function(
     (is.null(input_obj) || !is.character(input_obj) || length(input_obj) != 1L || !nzchar(input_obj))) {
     stop("`input_obj` must be set to the name of the upstream Seurat-object target (a single non-empty string) when `create_prep = TRUE`.")
   }
+  # Checked HERE rather than at build time: a path the writer cannot handle
+  # should fail when the pipeline is defined, not after the half-hour of work
+  # that was supposed to fill it.
+  if (!is.null(prep_path)) {
+    if (!is.character(prep_path) || length(prep_path) != 1L || !nzchar(prep_path)) {
+      stop("`prep_path` must be NULL or a single non-empty file path.")
+    }
+    .ext <- base::tolower(base::sub(".*\\.", "", base::basename(prep_path)))
+    if (!.ext %in% seurat_file_formats()) {
+      stop("`prep_path` must end in one of .qs2, .qs, .rds, .RData or .rda; got '",
+        base::basename(prep_path), "'.")
+    }
+  }
   if (is.null(clustering_col) || !is.character(clustering_col) || length(clustering_col) != 1L || !nzchar(clustering_col)) {
     stop("`clustering_col` must be set to the metadata column holding the cell groups / clusters (a single non-empty string).")
   }
@@ -462,31 +630,77 @@ tar_hdwgcna <- function(
 
   # ---- shared metacell preparation (created once across all tar_hdwgcna calls) ----
   prep_name <- base::paste0("wgcna_prep", name_suffix)
+
+  # The preparation itself, identical in both modes. Kept as one expression so
+  # the in-store and the on-disk variants cannot drift apart.
+  prep_body <- bquote({
+    WGCNA::enableWGCNAThreads(nThreads = .(n_threads))
+    # as_seurat(): the upstream target may hold the object itself OR a path to
+    # it, as a `format = "file"` target does. See ?as_seurat.
+    obj <- scitargets::as_seurat(.(as.name(input_obj)))
+    SeuratObject::DefaultAssay(obj) <- .(assay)
+    obj[[.(assay)]] <- SeuratObject::JoinLayers(obj[[.(assay)]])
+    obj <- Seurat::NormalizeData(obj, verbose = FALSE)
+    obj <- Seurat::FindVariableFeatures(obj, verbose = FALSE)
+    obj <- Seurat::ScaleData(obj, features = SeuratObject::VariableFeatures(obj), verbose = FALSE)
+    obj <- hdWGCNA::SetupForWGCNA(obj, gene_select = .(gene_select), fraction = .(fraction), wgcna_name = .(wgcna_name))
+    obj <- hdWGCNA::MetacellsByGroups(obj, group.by = .(metacell_group_by), reduction = .(reduction), k = .(metacell_k), max_shared = .(metacell_max_shared), ident.group = .(clustering_col))
+    obj <- hdWGCNA::NormalizeMetacells(obj)
+    obj <- hdWGCNA::ScaleMetacells(obj, features = SeuratObject::VariableFeatures(obj))
+    obj <- hdWGCNA::RunPCAMetacells(obj, features = SeuratObject::VariableFeatures(obj))
+    obj <- hdWGCNA::RunHarmonyMetacells(obj, group.by.vars = .(patient_col))
+    obj <- hdWGCNA::RunUMAPMetacells(obj, reduction = .(reduction), dims = .(metacell_dims))
+    obj
+  }, where = environment())
+
   prep <- if (isTRUE(create_prep)) list(targets::tar_target_raw(
     name = prep_name,
-    command = bquote({
-      library(WGCNA)
-      library(hdWGCNA)
-      WGCNA::enableWGCNAThreads(nThreads = .(n_threads))
-      # as_seurat(): the upstream target may hold the object itself OR a path to
-      # it, as a `format = "file"` target does. See ?as_seurat.
-      obj <- scitargets::as_seurat(.(as.name(input_obj)))
-      SeuratObject::DefaultAssay(obj) <- .(assay)
-      obj[[.(assay)]] <- SeuratObject::JoinLayers(obj[[.(assay)]])
-      obj <- Seurat::NormalizeData(obj, verbose = FALSE)
-      obj <- Seurat::FindVariableFeatures(obj, verbose = FALSE)
-      obj <- Seurat::ScaleData(obj, features = SeuratObject::VariableFeatures(obj), verbose = FALSE)
-      obj <- hdWGCNA::SetupForWGCNA(obj, gene_select = .(gene_select), fraction = .(fraction), wgcna_name = .(wgcna_name))
-      obj <- hdWGCNA::MetacellsByGroups(obj, group.by = .(metacell_group_by), reduction = .(reduction), k = .(metacell_k), max_shared = .(metacell_max_shared), ident.group = .(clustering_col))
-      obj <- hdWGCNA::NormalizeMetacells(obj)
-      obj <- hdWGCNA::ScaleMetacells(obj, features = SeuratObject::VariableFeatures(obj))
-      obj <- hdWGCNA::RunPCAMetacells(obj, features = SeuratObject::VariableFeatures(obj))
-      obj <- hdWGCNA::RunHarmonyMetacells(obj, group.by.vars = .(patient_col))
-      obj <- hdWGCNA::RunUMAPMetacells(obj, reduction = .(reduction), dims = .(metacell_dims))
-      obj
-    }, where = environment()),
+    command = if (base::is.null(prep_path)) {
+      bquote({
+        library(WGCNA)
+        library(hdWGCNA)
+        .(prep_body)
+      }, where = environment())
+    } else {
+      bquote({
+        library(WGCNA)
+        library(hdWGCNA)
+        .prep_path <- .(prep_path)
+        # A usable file WINS over rebuilding, which is the whole point: the
+        # preparation holds the full Seurat object plus a dense scale.data and
+        # peaks well above what a small machine has, so it is run once where
+        # there is room and the file is copied. It also means a change upstream
+        # does NOT refresh this object: delete the file to force a rebuild.
+        if (scitargets::hdwgcna_prep_is_valid(.prep_path, .(wgcna_name))) {
+          base::message("hdWGCNA: reusing the prepared object at '", .prep_path,
+            "' (delete it to rebuild).")
+          return(.prep_path)
+        }
+        base::message("hdWGCNA: building the prepared object into '", .prep_path, "'.")
+        obj <- .(prep_body)
+        scitargets::save_seurat(obj, .prep_path)
+        .prep_path
+      }, where = environment())
+    },
+    # format = "file" in the on-disk mode: the target's VALUE is the path, so
+    # targets hashes the object file itself and a file copied in from another
+    # machine is noticed. as_seurat() downstream accepts either form, so the
+    # rest of the factory is the same in both modes.
+    format = if (base::is.null(prep_path)) {
+      targets::tar_option_get("format")
+    } else {
+      "file"
+    },
     deployment = "main",
-    description = "hdWGCNA: shared metacell preparation (RNA: join layers, normalize, scale, SetupForWGCNA, metacells)"
+    description = if (base::is.null(prep_path)) {
+      "hdWGCNA: shared metacell preparation (RNA: join layers, normalize, scale, SetupForWGCNA, metacells)"
+    } else {
+      base::paste0(
+        "hdWGCNA: shared metacell preparation, cached at ", prep_path,
+        " (RNA: join layers, normalize, scale, SetupForWGCNA, metacells). ",
+        "Reuses the file when it is valid, otherwise builds and writes it."
+      )
+    }
   )) else list()
 
   per_group <- lapply(group, function(g) {
@@ -508,7 +722,9 @@ tar_hdwgcna <- function(
         # one at a time. Kept single-threaded (no enableWGCNAThreads(), whose socket
         # cluster also clashes under concurrency); the multithreaded step is the
         # network target (ConstructNetwork), also on main.
-        obj <- hdWGCNA::SetDatExpr(.(as.name(prep_name)), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
+        # as_seurat(): wgcna_prep holds the object itself, or the PATH to it when
+        # tar_hdwgcna() was given a `prep_path`. Either form works here.
+        obj <- hdWGCNA::SetDatExpr(scitargets::as_seurat(.(as.name(prep_name))), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
         obj <- hdWGCNA::TestSoftPowers(obj, networkType = .(network_type))
         # Return the SCALE-FREE FIT TABLE, not the Seurat object it came in.
         # TestSoftPowers only stashes a small table on a copy of the whole
@@ -558,7 +774,9 @@ tar_hdwgcna <- function(
         # target, which now returns only its fit table. SetDatExpr is a subset
         # and is cheap next to ConstructNetwork; carrying the object between the
         # two steps instead cost several GB of store per cell group.
-        obj <- hdWGCNA::SetDatExpr(.(as.name(prep_name)), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
+        # as_seurat(): as in the power-test target, wgcna_prep may hold the
+        # object or the path to it.
+        obj <- hdWGCNA::SetDatExpr(scitargets::as_seurat(.(as.name(prep_name))), group_name = .(g), group.by = .(clustering_col), assay = .(assay), layer = "data")
         obj <- hdWGCNA::ConstructNetwork(obj, soft_power = .(as.name(sp_name)), tom_name = .(g), tom_outdir = .(tom_outdir), overwrite_tom = .(overwrite_tom))
         if (.(delete_tom)) {
           # ConstructNetwork() has already derived the modules from the TOM, and
