@@ -144,15 +144,17 @@ hdwgcna_prep_is_valid <- function(path, wgcna_name = "hdwgcna") {
 #'   When `FALSE`, `input_obj` is not required.
 #' @param prep_path Where the prepared metacell object is cached, or `NULL` to
 #'   keep it in the `targets` store as an ordinary object target. When set
-#'   (the default, `"./out/seurat/wgcna_prep.qs"`), `wgcna_prep` becomes a
+#'   (the default, `"./out/seurat/wgcna_prep.qs2"`), `wgcna_prep` becomes a
 #'   `format = "file"` target whose value is this path: it reuses the file when
 #'   [hdwgcna_prep_is_valid()] accepts it, and otherwise builds the object,
 #'   writes it with [save_seurat()] and returns the path. The extension picks
 #'   the format (`.qs2`/`.qs`, `.rds`, `.RData`/`.rda`) and is checked when the
-#'   pipeline is defined. See the "Caching the prepared object" section for why
-#'   this exists and how to build the file by hand. With several
-#'   `clustering_col` values the scope suffix is inserted before the extension,
-#'   so `"out/prep.qs"` becomes `out/prep_0.3.qs` and `out/prep_0.6.qs`.
+#'   pipeline is defined; note that `.qs` is written by `qs2` here too, so it is
+#'   a qs2-format file rather than one the old `qs` package can read. See the
+#'   "Caching the prepared object" section for why this exists and how to build
+#'   the file by hand. With several `clustering_col` values the scope suffix is
+#'   inserted before the extension, so `"out/prep.qs2"` becomes
+#'   `out/prep_0.3.qs2` and `out/prep_0.6.qs2`.
 #' @param input_obj Name of the upstream Seurat-object target to start from
 #'   (required when `create_prep = TRUE`). That target may hold the Seurat
 #'   object itself, or the PATH to a file holding it, as a `format = "file"`
@@ -320,7 +322,7 @@ hdwgcna_prep_is_valid <- function(path, wgcna_name = "hdwgcna") {
 #' obj <- RunPCAMetacells(obj, features = VariableFeatures(obj))
 #' obj <- RunHarmonyMetacells(obj, group.by.vars = "patient_id")
 #' obj <- RunUMAPMetacells(obj, reduction = "harmony", dims = 1:15)
-#' scitargets::save_seurat(obj, "./out/seurat/wgcna_prep.qs")
+#' scitargets::save_seurat(obj, "./out/seurat/wgcna_prep.qs2")
 #' ```
 #'
 #' Every argument above must match the `tar_hdwgcna()` call that will read the
@@ -401,7 +403,7 @@ hdwgcna_prep_is_valid <- function(path, wgcna_name = "hdwgcna") {
 tar_hdwgcna <- function(
   group,
   create_prep = TRUE,
-  prep_path = "./out/seurat/wgcna_prep.qs",
+  prep_path = "./out/seurat/wgcna_prep.qs2",
   input_obj = NULL,
   wgcna_name = "hdwgcna",
   assay = "RNA",

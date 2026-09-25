@@ -7,6 +7,7 @@
 tar_hdwgcna(
   group,
   create_prep = TRUE,
+  prep_path = "./out/seurat/wgcna_prep.qs2",
   input_obj = NULL,
   wgcna_name = "hdwgcna",
   assay = "RNA",
@@ -60,8 +61,25 @@ share their labels.}
 calls that reuse the same \code{wgcna_prep} (exactly one call must use \code{TRUE}).
 When \code{FALSE}, \code{input_obj} is not required.}
 
+\item{prep_path}{Where the prepared metacell object is cached, or \code{NULL} to
+keep it in the \code{targets} store as an ordinary object target. When set
+(the default, \code{"./out/seurat/wgcna_prep.qs2"}), \code{wgcna_prep} becomes a
+\code{format = "file"} target whose value is this path: it reuses the file when
+\code{\link[=hdwgcna_prep_is_valid]{hdwgcna_prep_is_valid()}} accepts it, and otherwise builds the object,
+writes it with \code{\link[=save_seurat]{save_seurat()}} and returns the path. The extension picks
+the format (\code{.qs2}/\code{.qs}, \code{.rds}, \code{.RData}/\code{.rda}) and is checked when the
+pipeline is defined; note that \code{.qs} is written by \code{qs2} here too, so it is
+a qs2-format file rather than one the old \code{qs} package can read. See the
+"Caching the prepared object" section for why this exists and how to build
+the file by hand. With several \code{clustering_col} values the scope suffix is
+inserted before the extension, so \code{"out/prep.qs2"} becomes
+\code{out/prep_0.3.qs2} and \code{out/prep_0.6.qs2}.}
+
 \item{input_obj}{Name of the upstream Seurat-object target to start from
-(required when \code{create_prep = TRUE}).}
+(required when \code{create_prep = TRUE}). That target may hold the Seurat
+object itself, or the PATH to a file holding it, as a \code{format = "file"}
+target does; \code{\link[=as_seurat]{as_seurat()}} accepts either and says which file types it
+reads.}
 
 \item{wgcna_name}{Name of the hdWGCNA experiment (\code{SetupForWGCNA}).}
 
@@ -214,7 +232,9 @@ becomes \code{mait}, \code{"CD8 TEM"} becomes \code{cd8_tem}), the following ste
 \item \code{wgcna_prep}: the shared metacell preparation (\code{deployment = "main"}).
 Created only when \code{create_prep = TRUE} (the default); omit it (set
 \code{create_prep = FALSE}) on the other \code{tar_hdwgcna()} calls that reuse the
-same \code{wgcna_prep}.
+same \code{wgcna_prep}. With \code{prep_path} set (the default) this is a
+\code{format = "file"} target whose value is that path rather than the object;
+see the "Caching the prepared object" section.
 \item \verb{wgcna_<g>_powertest}: \code{SetDatExpr} for the group + \code{TestSoftPowers}
 (one per group; \code{deployment = "main"}, since it loads the whole Seurat
 object). Returns a small \code{list}, not the Seurat object: \code{power_table}
@@ -302,6 +322,69 @@ honours \code{deployment} and \code{controller}, so it can be sent to a worker (
 named controller when a controller group is used). \code{tom_name} is set to the
 group label.
 }
+\section{Caching the prepared object}{
+
+
+\code{wgcna_prep} is the memory peak of this factory, and by a wide margin. It
+holds the whole Seurat object, adds a normalised assay layer and a dense
+\code{scale.data} over the variable features, and only then reduces to metacells.
+On a dataset of ~50k cells that is comfortably into double-digit GB, which is
+more than a small server or a memory-capped container has, while the steps
+below it work on metacells and are far cheaper.
+
+\code{prep_path} exists so that peak has to be paid once, on a machine that can
+afford it, rather than on every machine that wants the results. When it is
+set, \code{wgcna_prep} becomes a \code{format = "file"} target that:
+\enumerate{
+\item checks the file with \code{\link[=hdwgcna_prep_is_valid]{hdwgcna_prep_is_valid()}} and, if it passes, returns
+the path without building anything;
+\item otherwise runs the preparation, writes it with \code{\link[=save_seurat]{save_seurat()}} and returns
+the path.
+}
+
+So the usual workflow is to run the pipeline once where there is memory, copy
+the resulting file across with the rest of \verb{out/}, and run everything else
+anywhere. \strong{The file wins over the pipeline}: an upstream change does not
+refresh it, exactly so that a machine which cannot rebuild it does not try.
+Delete the file to force a rebuild.
+
+The object is a plain Seurat object, so it can also be built outside the
+pipeline. This is what the target does, and a hand-made file only has to
+match it:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{library(Seurat); library(hdWGCNA); library(WGCNA)
+obj <- scitargets::as_seurat("out/seurat/merged_filtered.qs2")
+DefaultAssay(obj) <- "RNA"
+obj[["RNA"]] <- SeuratObject::JoinLayers(obj[["RNA"]])
+obj <- NormalizeData(obj, verbose = FALSE)
+obj <- FindVariableFeatures(obj, verbose = FALSE)
+obj <- ScaleData(obj, features = VariableFeatures(obj), verbose = FALSE)
+obj <- SetupForWGCNA(obj, gene_select = "fraction", fraction = 0.05,
+                     wgcna_name = "hdwgcna")
+obj <- MetacellsByGroups(obj,
+  group.by    = c("predicted.celltype.l2", "patient_id"),
+  ident.group = "predicted.celltype.l2",
+  reduction   = "harmony", k = 25, max_shared = 10)
+obj <- NormalizeMetacells(obj)
+obj <- ScaleMetacells(obj, features = VariableFeatures(obj))
+obj <- RunPCAMetacells(obj, features = VariableFeatures(obj))
+obj <- RunHarmonyMetacells(obj, group.by.vars = "patient_id")
+obj <- RunUMAPMetacells(obj, reduction = "harmony", dims = 1:15)
+scitargets::save_seurat(obj, "./out/seurat/wgcna_prep.qs2")
+}\if{html}{\out{</div>}}
+
+Every argument above must match the \code{tar_hdwgcna()} call that will read the
+file (\code{assay}, \code{gene_select}, \code{fraction}, \code{wgcna_name}, \code{metacell_group_by},
+\code{clustering_col}, \code{reduction}, \code{metacell_k}, \code{metacell_max_shared},
+\code{metacell_dims}, \code{patient_col}), because none of them is re-checked: only the
+structural conditions in \code{\link[=hdwgcna_prep_is_valid]{hdwgcna_prep_is_valid()}} are. A file prepared with
+a different \code{fraction} is accepted and silently changes the gene set the
+networks are built on.
+
+Set \code{prep_path = NULL} to restore the previous behaviour, where the prepared
+object is an ordinary target kept in the \code{targets} store.
+}
+
 \examples{
 \dontrun{
 list(

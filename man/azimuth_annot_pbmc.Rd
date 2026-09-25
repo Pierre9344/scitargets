@@ -14,7 +14,7 @@ azimuth_annot_pbmc(
 \arguments{
 \item{obj}{a Seurat object with an SCT assay and a metadata field corresponding to cell clusters}
 
-\item{cluster_to_use}{Name of the cells clusters}
+\item{cluster_to_use}{\strong{Deprecated} Name of the cells clusters}
 
 \item{reference}{Reference passed to \code{\link[Azimuth:RunAzimuth]{Azimuth::RunAzimuth()}}. \code{NULL} (the
 default) uses the \code{pbmcref.SeuratData} package's own \verb{azimuth/} directory

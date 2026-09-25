@@ -39,7 +39,7 @@ tar_demultiplex_hto(
 
 \item{singlets_dim_to_use}{PCA dimensions to use when computing UMAP and t-SNE (only used after extracting the singlets cells).}
 
-\item{singlets_clusters_to_use}{Name of cell cluster to use when identifying markers or running azimuth celltype annotation}
+\item{singlets_clusters_to_use}{Name of cell cluster to use when identifying markers}
 
 \item{run_azimuth}{If true, run azimuth using the (human) pbmc-ref of SeuratData}
 

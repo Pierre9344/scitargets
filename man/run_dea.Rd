@@ -41,7 +41,8 @@ run_dea(
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object.}
+\item{seurat_obj}{A Seurat object, or a path to a file holding one (see
+\code{\link[=as_seurat]{as_seurat()}} for the file types accepted).}
 
 \item{group_by}{Metadata column holding the group labels.}
 
