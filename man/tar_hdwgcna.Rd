@@ -353,23 +353,38 @@ pipeline. This is what the target does, and a hand-made file only has to
 match it:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{library(Seurat); library(hdWGCNA); library(WGCNA)
-obj <- scitargets::as_seurat("out/seurat/merged_filtered.qs2")
+# load the seurat object and basic setup
+obj <- scitargets::as_seurat("out/seurat/seurat_obj.qs2")
 DefaultAssay(obj) <- "RNA"
 obj[["RNA"]] <- SeuratObject::JoinLayers(obj[["RNA"]])
 obj <- NormalizeData(obj, verbose = FALSE)
 obj <- FindVariableFeatures(obj, verbose = FALSE)
 obj <- ScaleData(obj, features = VariableFeatures(obj), verbose = FALSE)
-obj <- SetupForWGCNA(obj, gene_select = "fraction", fraction = 0.05,
-                     wgcna_name = "hdwgcna")
+
+# WGCNA setup (see https://smorabit.github.io/hdWGCNA/articles/basic_tutorial.html#set-up-seurat-object-for-wgcna)
+obj <- SetupForWGCNA(obj,
+ gene_select = "fraction",     # gene_select
+  fraction = 0.05,             # fraction
+  wgcna_name = "hdwgcna"       # wgcna_name
+  )
 obj <- MetacellsByGroups(obj,
-  group.by    = c("predicted.celltype.l2", "patient_id"),
-  ident.group = "predicted.celltype.l2",
-  reduction   = "harmony", k = 25, max_shared = 10)
+  group.by    = c("predicted.celltype.l2", "patient_id"), # clustering_col and patient_col
+  ident.group = "predicted.celltype.l2",                  # metacell_group_by
+  reduction   = "harmony",                                # reduction
+   k = 25,                                                # metacell_k
+   max_shared = 10                                        # metacell_max_shared
+   )
 obj <- NormalizeMetacells(obj)
 obj <- ScaleMetacells(obj, features = VariableFeatures(obj))
 obj <- RunPCAMetacells(obj, features = VariableFeatures(obj))
-obj <- RunHarmonyMetacells(obj, group.by.vars = "patient_id")
-obj <- RunUMAPMetacells(obj, reduction = "harmony", dims = 1:15)
+obj <- RunHarmonyMetacells(
+   obj,
+   group.by.vars = "patient_id"      # patient_cols
+   )
+obj <- RunUMAPMetacells(obj,
+   reduction = "harmony",            # reduction
+   dims = 1:15                       # metacells_dims
+   )
 scitargets::save_seurat(obj, "./out/seurat/wgcna_prep.qs2")
 }\if{html}{\out{</div>}}
 

@@ -17,8 +17,8 @@
 #' | extension | reader |
 #' | --- | --- |
 #' | `.qs2`, `.qs` | [qs2::qs_read()] |
-#' | `.rds` | [readRDS()] |
-#' | `.RData`, `.rda` | [load()] |
+#' | `.rds` | [base::readRDS()] |
+#' | `.RData`, `.rda` | [base::load()] |
 #'
 #' `.RData` must hold exactly ONE object. `save()`/`load()` carry the variable's
 #' name inside the file rather than returning the value, so a file holding
@@ -110,8 +110,8 @@ seurat_file_formats <- function() {
 #' | extension | writer |
 #' | --- | --- |
 #' | `.qs2`, `.qs` | [qs2::qs_save()] |
-#' | `.rds` | [saveRDS()] |
-#' | `.RData`, `.rda` | [save()], under the name `obj` |
+#' | `.rds` | [base::saveRDS()] |
+#' | `.RData`, `.rda` | [base::save()], under the name `obj` |
 #'
 #' Prefer `.qs2`: it is markedly smaller and faster than `.rds` for a Seurat
 #' object, and unlike `.RData` it stores a value rather than a variable name.

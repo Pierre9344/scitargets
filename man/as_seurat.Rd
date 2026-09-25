@@ -32,8 +32,8 @@ the downstream steps changing.
 The reader is chosen from the file extension:\tabular{ll}{
    extension \tab reader \cr
    \code{.qs2}, \code{.qs} \tab \code{\link[qs2:qs_read]{qs2::qs_read()}} \cr
-   \code{.rds} \tab \code{\link[=readRDS]{readRDS()}} \cr
-   \code{.RData}, \code{.rda} \tab \code{\link[=load]{load()}} \cr
+   \code{.rds} \tab \code{\link[base:readRDS]{base::readRDS()}} \cr
+   \code{.RData}, \code{.rda} \tab \code{\link[base:load]{base::load()}} \cr
 }
 
 

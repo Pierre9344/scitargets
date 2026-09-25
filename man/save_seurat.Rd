@@ -25,8 +25,8 @@ which format, so a file written here reads back there.
 \tabular{ll}{
    extension \tab writer \cr
    \code{.qs2}, \code{.qs} \tab \code{\link[qs2:qs_save]{qs2::qs_save()}} \cr
-   \code{.rds} \tab \code{\link[=saveRDS]{saveRDS()}} \cr
-   \code{.RData}, \code{.rda} \tab \code{\link[=save]{save()}}, under the name \code{obj} \cr
+   \code{.rds} \tab \code{\link[base:saveRDS]{base::saveRDS()}} \cr
+   \code{.RData}, \code{.rda} \tab \code{\link[base:save]{base::save()}}, under the name \code{obj} \cr
 }
 
 
