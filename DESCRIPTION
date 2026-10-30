@@ -66,4 +66,4 @@ Authors@R:
     person("Pierre", "Solomon", , "pierre.solomon@laposte.net", role = c("aut", "cre"))
 Author: Pierre Solomon
 Maintainer: Pierre Solomon <pierre.solomon@laposte.net>
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1

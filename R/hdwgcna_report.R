@@ -11,6 +11,81 @@
   }
 }
 
+#' Soft-power diagnostic plots from a power-test result
+#'
+#' Draws the four panels of [hdWGCNA::PlotSoftPowers()] (scale-free topology
+#' fit, mean, median and maximum connectivity against the soft power), with the
+#' chosen power highlighted. Since 1.6.0 the `wgcna_<group>_powertest` target of
+#' [tar_hdwgcna()] is a small `list` holding the fit table rather than the
+#' Seurat object, and `PlotSoftPowers()` only accepts the object, so the report
+#' draws the same figure from the table instead.
+#'
+#' @param x The value of a `wgcna_<group>_powertest` target: a `list` with
+#'   `power_table`, `soft_power` and `sft_rsquared`. A Seurat object that went
+#'   through `hdWGCNA::TestSoftPowers()` is also accepted (its power table is
+#'   read with `hdWGCNA::GetPowerTable()`).
+#' @param soft_power Power to highlight. Defaults to the one the power test
+#'   chose (`x$soft_power`), or, for a Seurat object, the lowest power reaching
+#'   `sft_rsquared`.
+#' @param sft_rsquared Scale-free fit threshold, shaded below in the first
+#'   panel. Defaults to the one the power test used, else 0.8.
+#' @param point_size,text_size Size of the highlighted point and of the labels.
+#' @returns A list of four `ggplot` objects, ready for
+#'   `patchwork::wrap_plots(p, ncol = 2)`.
+#' @export
+hdwgcna_plot_soft_powers <- function(x, soft_power = NULL, sft_rsquared = NULL,
+                                     point_size = 5, text_size = 3) {
+  if (inherits(x, "Seurat")) {
+    .hdwgcna_require()
+    pt <- hdWGCNA::GetPowerTable(x)
+  } else if (is.list(x) && is.data.frame(x[["power_table"]])) {
+    pt <- x[["power_table"]]
+    if (is.null(soft_power)) soft_power <- x[["soft_power"]]
+    if (is.null(sft_rsquared)) sft_rsquared <- x[["sft_rsquared"]]
+  } else {
+    stop("hdwgcna_plot_soft_powers(): `x` must be a wgcna_<group>_powertest value ",
+         "(a list with `power_table`) or a Seurat object after TestSoftPowers().",
+         call. = FALSE)
+  }
+  pt <- as.data.frame(pt)
+  if (is.null(sft_rsquared)) sft_rsquared <- 0.8
+  if (is.null(soft_power)) {
+    pass <- pt[["Power"]][pt[["SFT.R.sq"]] >= sft_rsquared]
+    soft_power <- if (length(pass)) min(pass) else max(pt[["Power"]], na.rm = TRUE)
+  }
+  pt$is_chosen <- pt[["Power"]] == soft_power
+  sel <- pt[pt$is_chosen, , drop = FALSE]
+
+  panel <- function(y, ylab, shade = FALSE) {
+    p <- ggplot2::ggplot(pt, ggplot2::aes(x = .data[["Power"]], y = .data[[y]]))
+    if (shade) {
+      p <- p + ggplot2::annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf,
+                                 ymax = sft_rsquared, fill = "grey80", alpha = 0.8)
+    }
+    p <- p +
+      ggplot2::geom_hline(yintercept = sel[[y]], linetype = "dashed") +
+      ggplot2::geom_vline(xintercept = soft_power, linetype = "dashed") +
+      ggplot2::geom_point(data = sel, size = point_size, colour = "black") +
+      ggplot2::geom_text(ggplot2::aes(label = .data[["Power"]],
+                                      colour = .data[["is_chosen"]]),
+                         size = text_size, show.legend = FALSE) +
+      ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "black")) +
+      ggplot2::labs(x = "Soft Power Threshold", y = ylab) +
+      ggplot2::theme_bw()
+    if (shade) {
+      p + ggplot2::scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2))
+    } else {
+      p + ggplot2::scale_y_continuous(labels = scales::comma)
+    }
+  }
+  list(
+    panel("SFT.R.sq", "Scale-free Topology Model Fit", shade = TRUE),
+    panel("mean.k.", "Mean Connectivity"),
+    panel("median.k.", "Median Connectivity"),
+    panel("max.k.", "Max Connectivity")
+  )
+}
+
 #' Modules associated with at least one trait
 #'
 #' Returns the module names whose harmonised module eigengene is significantly
@@ -736,7 +811,9 @@ hdwgcna_report_lines <- function(group,
     "#| message: false",
     "#| warning: false",
     sprintf("#| label: fig-softpower-%s", sfx),
-    sprintf('p <- hdWGCNA::PlotSoftPowers(targets::tar_read("%s"))', pt),
+    # The power-test target is a list holding the fit table since 1.6.0, which
+    # hdWGCNA::PlotSoftPowers() cannot read; this draws the same panels from it.
+    sprintf('p <- scitargets::hdwgcna_plot_soft_powers(targets::tar_read("%s"))', pt),
     "patchwork::wrap_plots(p, ncol = 2)",
     "```",
     "",
@@ -976,5 +1053,5 @@ hdwgcna_report_lines <- function(group,
 utils::globalVariables(c(
   "module", "clinical_group", "r", "label", "neg_log10", "Term_w",
   "tooltip", "row_id", "comparison", "avg_log2FC", "score", "condition", "cell",
-  "cell_type", "group"
+  "cell_type", "group", ".data"
 ))

@@ -8,6 +8,8 @@
 
 - The `wgcna_prep` consumers (`wgcna_<group>_powertest` and `wgcna_<group>`) now read it through `as_seurat()`, so they accept the object or the path and the factory is the same in both modes.
 
+- Fix: `hdwgcna_report_lines()` drew the soft-power figure with `hdWGCNA::PlotSoftPowers(tar_read("wgcna_<group>_powertest"))`, but since 1.6.0 that target is a `list` holding the fit table, not a Seurat object, so every report failed at that chunk with `no applicable method for '@' applied to an object of class "list"` (the 1.6.0 note claiming nothing in the package read the target as an object was wrong). New exported `hdwgcna_plot_soft_powers()` draws the same four panels from the list (or from a Seurat object after `TestSoftPowers()`), highlighting the power the pipeline actually chose and shading below the `sft_rsquared` threshold it used, where `PlotSoftPowers()` hard-codes 0.8; the report now calls it.
+
 # scitargets 1.8.0
 
 - New `as_seurat()`: takes a Seurat object **or a path to a file holding one**, and returns the object. It reads `.qs2`/`.qs` with `qs2::qs_read()`, `.rds` with `readRDS()` and `.RData`/`.rda` with `load()`, and errors with a clear message on anything else, on a file whose contents are not a Seurat object, or on an `.RData` holding more than one object (`save()`/`load()` store the variable's NAME, so a multi-object file has no unambiguous answer).
